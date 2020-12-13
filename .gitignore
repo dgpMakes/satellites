@@ -32,3 +32,5 @@
 *.app
 
 part2/cosmos
+.vscode
+part2/main
