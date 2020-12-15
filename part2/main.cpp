@@ -5,6 +5,7 @@
 #include <unordered_set>
 #include <queue>
 #include "main.h"
+#include <algorithm>
 
 class satellite_hasher { 
 public: 
@@ -34,7 +35,7 @@ struct node {
     action sat1_action;
     int accumulated_cost;
     satellite_state* state;
-    satellite_state* parent;
+    node* parent;
 };
 
 struct observation {
@@ -104,31 +105,51 @@ class satellite_state {
         
         // Check if satellites can observe up or down
         sat0[0] = obs_to_do[this->sat_band[0]][time];
-        sat0[1] = obs_to_do[this->sat_band[0] + 1][time];
         sat1[0] = obs_to_do[this->sat_band[1]][time];
+
+        sat0[1] = obs_to_do[this->sat_band[0] + 1][time];
         sat1[1] = obs_to_do[this->sat_band[1] + 1][time];
 
         //Check if satellites can turn
-        sat0[2] = this->sat_remaining_battery[0] > sat_turn_cost[0];
-        sat0[2] = this->sat_remaining_battery[1] > sat_turn_cost[1];
+        sat0[2] = this->sat_remaining_battery[0] >= sat_turn_cost[0];
+        sat1[2] = this->sat_remaining_battery[1] >= sat_turn_cost[1];
           
         // Check if satellites can recharge        
         sat0[3] = this->sat_remaining_battery[0] < sat_max_battery[0];
         sat1[3] = this->sat_remaining_battery[1] < sat_max_battery[1];
 
-        // Check if satellites can downlink       
-        sat0[4] = this->sat_remaining_battery[0] > sat_downlink_cost[0];
-        sat1[4] = this->sat_remaining_battery[1] > sat_downlink_cost[0];
+        // Check if satellites can downlink
+        bool found_obs_to_do = false;
+        for(std::vector<bool> v : obs_to_do){
+            for(bool b : v){
+                found_obs_to_do = found_obs_to_do ^ b;
+            }
+        }
+
+        if(!found_obs_to_do) {
+            sat0[4] = this->sat_remaining_battery[0] >= sat_downlink_cost[0];
+            sat1[4] = this->sat_remaining_battery[1] >= sat_downlink_cost[0];
+        }      
+
 
         //Satellites can always do nothing
         sat0[5] = true;
         sat1[5] = true;
         
-        for(int i = 0; i < 5; i++) {
-            for(int j = 0; j < 5; j++) {
+        for(int i = 0; i < 6; i++) {
+            for(int j = 0; j < 6; j++) {
                 if(sat0[i] && sat1[j]) {
+
+                    // Do not allow dual observation
+                    if((i == 1 || i == 0) && (j == 0 || j == 1)) continue;
+
                     // Add the operation
-                    int s_time = this->time + 1;
+                    int s_time;
+                    if(time < 12) {
+                        s_time = this->time + 1;
+                    } else {
+                        s_time = 0;
+                    }
                     std::vector<int> s_sat_band = sat_band;
                     std::vector<bool> s_downlinked = downlinked;
                     std::vector<int> s_sat_remaining_battery = sat_remaining_battery;
@@ -138,7 +159,7 @@ class satellite_state {
                     
                     // Observe up
                     if(i == 0) {
-                        obs_to_do[sat_band[1]][time] = false;
+                        obs_to_do[sat_band[0]][time] = false;
                         s_sat_remaining_battery[0] -= satellite_state::sat_turn_cost[0];
                     }
 
@@ -149,7 +170,7 @@ class satellite_state {
 
                     // Observe down
                     if(i == 1) {
-                        obs_to_do[sat_band[1] + 1][time] = false;
+                        obs_to_do[sat_band[0] + 1][time] = false;
                         s_sat_remaining_battery[0] -= satellite_state::sat_turn_cost[0];
                     }
 
@@ -195,13 +216,12 @@ class satellite_state {
 
                     //If nothing is done, time passes. 
 
-                    satellite_state s_state(s_time, s_sat_band, s_downlinked, s_obs_to_do, s_sat_remaining_battery);
+                    satellite_state* s_state = new satellite_state(s_time, s_sat_band, s_downlinked, s_obs_to_do, s_sat_remaining_battery);
 
                     node n;
                     n.sat0_action = s1;
                     n.sat1_action = s2;
-                    n.parent = this;
-                    n.state = &s_state;
+                    n.state = s_state;
 
                     v.push_back(n);
 
@@ -237,9 +257,17 @@ class satellite_state {
 };
 
 std::ostream &operator<<(std::ostream &os, const satellite_state &m) { 
-          os << (m.downlinked[0] ? "yes":"no") << m.time << 
-          " sat0band:" << std::to_string(m.sat_band[0]) << " sat1band:" << 
-          std::to_string(m.sat_band[1]); 
+          os << "\nSatellite 1 downlinked -> " << m.downlinked[0] 
+          << "\nSatellite 2 downlinked -> " << m.downlinked[1] 
+          << "\nSatellite 1 information: "
+          << "\n     band:    " << m.sat_band[0]
+          << "\n     battery: " << m.sat_remaining_battery[0]
+          << "\nSatellite 2 information: "
+          << "\n     band:    " << m.sat_band[1]
+          << "\n     battery: " << m.sat_remaining_battery[1]
+          << "\n Time -> " << m.time << "\n"
+          ;
+
 
           return os;
     }
@@ -247,7 +275,7 @@ std::ostream &operator<<(std::ostream &os, const satellite_state &m) {
 
     /* Static parts */
     // Cost of making an observation
-    std::vector<int> satellite_state::sat_observe_cost{2, 0};
+    std::vector<int> satellite_state::sat_observe_cost{0,0};
 
     // Cost of downlinking
     std::vector<int> satellite_state::sat_downlink_cost{0,0};
@@ -287,8 +315,9 @@ class a_star {
 
 
             // Infinite loop till a goal state is found
-            while(!queue.front().state->is_goal_state() && !queue.empty()){
-            
+            while(!queue.empty()){
+                if(queue.front().state->is_goal_state()) break;
+
                 // Extract element from queue
                 node to_expand = queue.front();
                 queue.pop();
@@ -297,8 +326,9 @@ class a_star {
                 std::vector<node> sucessors = to_expand.state->get_successors();
                 for(node sucessor : sucessors){
                     // Check if the node has already been visited
-                    if(visited.find(*sucessor.state) != visited.end()){
+                    if(visited.find(*sucessor.state) == visited.end()){
                         sucessor.accumulated_cost = to_expand.accumulated_cost + 1;
+                        sucessor.parent = &to_expand;
                         queue.push(sucessor);
                         visited.insert(*sucessor.state);
                     }
@@ -311,7 +341,9 @@ class a_star {
             }
 
             std::cout << queue.front().state << "\n Found a goal state!!!! \n";
-            std::cout << queue.front().state;
+            std::cout << *queue.front().state;
+
+            // Backtrace it
         }
 
     private:
@@ -411,7 +443,6 @@ int main(int argc, char **argv) {
      obs_to_do, sat_remaining_battery);
 
     a_star a;
-    std::cout << root << std::endl;
 
     a.search(root);
 
