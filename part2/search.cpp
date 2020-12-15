@@ -6,6 +6,7 @@
 #include <queue>
 #include "main.h"
 
+
 class satellite_hasher { 
 public: 
     size_t operator()(const satellite_state& p) const
@@ -324,99 +325,3 @@ class a_star {
 
 
 };
-
-
-
-int main(int argc, char **argv) {
-
-    if(argc != 3){
-        std::cerr << "The number of arguments is incorrect: " << argc;
-        return 0;
-    }
-
-    std::string problem_file_content;
-
-    std::ifstream file(argv[1], std::ifstream::in);
-    
-    // Parsing the problem's data
-    std::stringstream strStream;
-    strStream << file.rdbuf();
-    problem_file_content = strStream.str();
-
-    // Get each line
-    std::vector<std::string> lines = split(problem_file_content, "\n");
-
-
-    // Get observations list
-    replace(lines[0], " ", "");
-    replace(lines[0], "OBS:", "");
-    std::vector<std::string> observations_list = split(lines[0], ";");
-
-    // Analyze the scheduled observations in the file
-    std::vector<std::vector<bool>> obs_to_do(4, std::vector<bool>(12));
-    for(std::string obs : observations_list) {
-
-        // Get rid of the separators
-        replace(obs, "(", "");
-        replace(obs, ")", "");
-
-        // Two strings, each one a number with a coordinate
-        std::vector<std::string> coordinates = split(obs, ",");
-
-        // Create an observation and fill information
-        int c0 = std::stoi(coordinates[0]);
-        int c1 = std::stoi(coordinates[1]);
-        obs_to_do[c0][c1] = true;
-    }
-
-    // Extract satellite one static parameters
-    replace(lines[1], " ", "");
-    replace(lines[1], "sat0:", "");
-    std::vector<std::string> sat0_data = split(lines[1], ";");
-
-    
-
-    replace(lines[2], " ", "");
-    replace(lines[2], "sat1:", "");
-    std::vector<std::string> sat1_data = split(lines[2], ";");
-
-
-    // Define static parts of the problem and pass struct with all the data
-
-    /* Static parts */
-    // Cost of making an observation
-    satellite_state::sat_observe_cost[0] = std::stoi(sat0_data[0]);
-    satellite_state::sat_observe_cost[1] = std::stoi(sat1_data[0]);
-
-    // Cost of downlinking
-    satellite_state::sat_downlink_cost[0] = std::stoi(sat0_data[1]);
-    satellite_state::sat_downlink_cost[1] = std::stoi(sat1_data[1]);
-
-    // Cost of visibility band turn
-    satellite_state::sat_turn_cost[0] = std::stoi(sat0_data[2]);
-    satellite_state::sat_turn_cost[1] = std::stoi(sat1_data[2]);
-
-    // How much does battery increase per charge hour
-    satellite_state::sat_recharge_battery[0] = std::stoi(sat0_data[3]);
-    satellite_state::sat_recharge_battery[1] = std::stoi(sat1_data[3]);
-
-    // Max battery capacity
-    satellite_state::sat_max_battery[0] = std::stoi(sat0_data[4]);
-    satellite_state::sat_max_battery[1] = std::stoi(sat1_data[4]);
-    
-    std::vector<int> initial_sat_bands{0,2};
-    std::vector<bool> downlinked{false, false};
-    std::vector<int> sat_remaining_battery{satellite_state::sat_max_battery[0],
-                                            satellite_state::sat_max_battery[1]};
-
-    satellite_state root(0, initial_sat_bands, downlinked,
-     obs_to_do, sat_remaining_battery);
-     std::cout << root;
-    a_star a;
-    a.search(root);
-
-
-    
-    return 0;
-
-}
