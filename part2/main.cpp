@@ -371,13 +371,11 @@ int main(int argc, char **argv) {
 
     // Extract satellite one static parameters
     replace(lines[1], " ", "");
-    replace(lines[1], "sat0:", "");
+    replace(lines[1], "SAT1:", "");
     std::vector<std::string> sat0_data = split(lines[1], ";");
 
-    
-
     replace(lines[2], " ", "");
-    replace(lines[2], "sat1:", "");
+    replace(lines[2], "SAT2:", "");
     std::vector<std::string> sat1_data = split(lines[2], ";");
 
 
@@ -403,7 +401,7 @@ int main(int argc, char **argv) {
     // Max battery capacity
     satellite_state::sat_max_battery[0] = std::stoi(sat0_data[4]);
     satellite_state::sat_max_battery[1] = std::stoi(sat1_data[4]);
-    
+
     std::vector<int> initial_sat_bands{0,2};
     std::vector<bool> downlinked{false, false};
     std::vector<int> sat_remaining_battery{satellite_state::sat_max_battery[0],
@@ -411,8 +409,10 @@ int main(int argc, char **argv) {
 
     satellite_state root(0, initial_sat_bands, downlinked,
      obs_to_do, sat_remaining_battery);
-     std::cout << root;
+
     a_star a;
+    std::cout << root << std::endl;
+
     a.search(root);
 
 
