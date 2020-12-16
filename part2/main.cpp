@@ -6,6 +6,7 @@
 #include <queue>
 #include "main.h"
 #include <algorithm>
+#include <list>
 
 class satellite_hasher { 
 public: 
@@ -28,11 +29,11 @@ class search_problem {
 };
 
 // The only thing that has a cost is passing time
-enum action{observe_up, observe_down, recharge, turn, downlink, nothing};
+enum action{observe_up=0, observe_down=1, recharge=2, turn=3, downlink=4, nothing=5};
 
 struct node {
-    action sat0_action;
     action sat1_action;
+    action sat2_action;
     int accumulated_cost;
     satellite_state* state;
     node* parent;
@@ -96,8 +97,8 @@ class satellite_state {
     // };
 
 
-    std::vector<node> get_successors() {
-        std::vector<node> v;
+    std::vector<node*> get_successors() {
+        std::vector<node*> v;
         /* Operations definition */
         // Definir un array de booleanos, indicando si un satélite puede hacer una acción.
         std::vector<bool> sat0(6, false); // Observe up, Observe down, turn, recharge, downlink, do_nothing
@@ -122,7 +123,7 @@ class satellite_state {
         bool found_obs_to_do = false;
         for(std::vector<bool> v : obs_to_do){
             for(bool b : v){
-                found_obs_to_do = found_obs_to_do ^ b;
+                found_obs_to_do = found_obs_to_do | b;
             }
         }
 
@@ -161,22 +162,27 @@ class satellite_state {
                     if(i == 0) {
                         obs_to_do[sat_band[0]][time] = false;
                         s_sat_remaining_battery[0] -= satellite_state::sat_turn_cost[0];
+                        s1 = observe_up;
                     }
 
                     if(j == 0) {
                         obs_to_do[sat_band[1]][time] = false;
                         s_sat_remaining_battery[1] -= satellite_state::sat_turn_cost[1];
+                        s2 = observe_up;
+
                     }
 
                     // Observe down
                     if(i == 1) {
                         obs_to_do[sat_band[0] + 1][time] = false;
                         s_sat_remaining_battery[0] -= satellite_state::sat_turn_cost[0];
+                        s1 = observe_down;
                     }
 
                     if(j == 1) {
                         obs_to_do[sat_band[1] + 1][time] = false;
                         s_sat_remaining_battery[1] -= satellite_state::sat_turn_cost[1];
+                        s2 = observe_down;
                     }
 
                     // Change band
@@ -218,10 +224,10 @@ class satellite_state {
 
                     satellite_state* s_state = new satellite_state(s_time, s_sat_band, s_downlinked, s_obs_to_do, s_sat_remaining_battery);
 
-                    node n;
-                    n.sat0_action = s1;
-                    n.sat1_action = s2;
-                    n.state = s_state;
+                    node* n = new node();
+                    n->sat1_action = s1;
+                    n->sat2_action = s2;
+                    n->state = s_state;
 
                     v.push_back(n);
 
@@ -307,47 +313,65 @@ class a_star {
     public:
         
         void search(satellite_state root){
-            node n;
-            n.accumulated_cost = 0;
-            n.parent = nullptr;
-            n.state = &root;        
+            node* n = new node();
+            n->accumulated_cost = 0;
+            n->parent = nullptr;
+            n->state = &root;
             queue.push(n);
 
 
             // Infinite loop till a goal state is found
+            int m = 0;
             while(!queue.empty()){
-                if(queue.front().state->is_goal_state()) break;
+                m++;
+                if(queue.front()->state->is_goal_state()) break;
 
                 // Extract element from queue
-                node to_expand = queue.front();
+                node* to_expand = queue.front();
                 queue.pop();
 
                 // Get all sucessors and append them to the fifo queue
-                std::vector<node> sucessors = to_expand.state->get_successors();
-                for(node sucessor : sucessors){
+                std::vector<node*> sucessors = to_expand->state->get_successors();
+                for(node* sucessor : sucessors){
                     // Check if the node has already been visited
-                    if(visited.find(*sucessor.state) == visited.end()){
-                        sucessor.accumulated_cost = to_expand.accumulated_cost + 1;
-                        sucessor.parent = &to_expand;
+                    if(visited.find(*(sucessor->state)) == visited.end()){
+                        sucessor->accumulated_cost = to_expand->accumulated_cost + 1;
+                        sucessor->parent = to_expand;
                         queue.push(sucessor);
-                        visited.insert(*sucessor.state);
+                        visited.insert(*(sucessor->state));
                     }
                 }
             }
+            std::cout << "Iterations: " << m << std::endl;
 
             if(queue.empty()) {
                 std::cout << "No solution found!!!\n";
                 return;
             }
 
-            std::cout << queue.front().state << "\n Found a goal state!!!! \n";
-            std::cout << *queue.front().state;
+            std::cout << queue.front()->state << "\n Found a goal state!!!! \n";
+            std::cout << *queue.front()->state;
 
             // Backtrace it
+            node* s = queue.front();
+            int i = 1;
+
+            std::vector<std::string> action_to_string{"Measure", "Measure", "Charge", "Turn", "Downlink", "IDLE"};
+
+            do {
+                std::string sat1_act = action_to_string[s->sat1_action];
+                std::string sat2_act = action_to_string[s->sat2_action];
+                std::cout << i << ". SAT1: " << sat1_act 
+                << ", SAT2: " << sat2_act << "\n";
+                s = s->parent;
+                i++;
+            } while (s->parent != nullptr);
+
+
         }
 
     private:
-        std::queue<node> queue;
+        std::queue<node*> queue;
         std::unordered_set<satellite_state, satellite_hasher> visited;
 
 
