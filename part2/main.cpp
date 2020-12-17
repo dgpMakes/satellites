@@ -103,9 +103,6 @@ class satellite_state {
         // Definir un array de booleanos, indicando si un satélite puede hacer una acción.
         std::vector<bool> sat0(6, false); // Observe up, Observe down, turn, recharge, downlink, do_nothing
         std::vector<bool> sat1(6, false); // Observe up, Observe down, turn, recharge, downlink, do_nothing
-
-        // For the root node
-        if(time == -1) time = 0;
         
         // Check if satellites can observe up
         sat0[0] = obs_to_do[this->sat_band[0]][time];
@@ -242,12 +239,6 @@ class satellite_state {
             }
         }
 
-  
-    
-
-
-
-
         return v;
         
     };
@@ -320,17 +311,24 @@ class a_star {
     public:
         
         void search(satellite_state root){
-            node* n = new node();
-            n->accumulated_cost = 0;
-            n->parent = nullptr;
-            n->state = &root;
-            n->sat0_action = nothing;
-            n->sat1_action = nothing;
-            queue.push(n);
+            node* root_node = new node();
+            root_node->accumulated_cost = 0;
+            root_node->parent = nullptr;
+            root_node->state = &root;
+            root_node->sat0_action = nothing;
+            root_node->sat1_action = nothing;
+
+            std::vector<node*> successors = root_node->state->get_successors();
+            for(node* root_successor : successors){
+                root_successor->parent = root_node;
+                queue.push(root_successor);
+                visited.insert(*(root_successor->state));
+            }
+
 
 
             // Infinite loop till a goal state is found
-            int m = 0;
+            int m = 1;
             while(!queue.empty()){
                 m++;
                 if(queue.front()->state->is_goal_state()) break;
@@ -472,7 +470,7 @@ int main(int argc, char **argv) {
     std::vector<int> sat_remaining_battery{satellite_state::sat_max_battery[0],
                                             satellite_state::sat_max_battery[1]};
 
-    satellite_state root(-1, initial_sat_bands, downlinked,
+    satellite_state root(0, initial_sat_bands, downlinked,
      obs_to_do, sat_remaining_battery);
 
     a_star a;
