@@ -103,6 +103,9 @@ class satellite_state {
         // Definir un array de booleanos, indicando si un satélite puede hacer una acción.
         std::vector<bool> sat0(6, false); // Observe up, Observe down, turn, recharge, downlink, do_nothing
         std::vector<bool> sat1(6, false); // Observe up, Observe down, turn, recharge, downlink, do_nothing
+
+        // For the root node
+        if(time == -1) time = 0;
         
         // Check if satellites can observe up
         sat0[0] = obs_to_do[this->sat_band[0]][time];
@@ -267,12 +270,12 @@ class satellite_state {
 };
 
 std::ostream &operator<<(std::ostream &os, const satellite_state &m) { 
-          os << "\nSatellite 1 downlinked -> " << m.downlinked[0] 
-          << "\nSatellite 2 downlinked -> " << m.downlinked[1] 
-          << "\nSatellite 1 information: "
+          os << "\nSatellite 0 downlinked -> " << m.downlinked[0] 
+          << "\nSatellite 1 downlinked -> " << m.downlinked[1] 
+          << "\nSatellite 0 information: "
           << "\n     band:    " << m.sat_band[0]
           << "\n     battery: " << m.sat_remaining_battery[0]
-          << "\nSatellite 2 information: "
+          << "\nSatellite 1 information: "
           << "\n     band:    " << m.sat_band[1]
           << "\n     battery: " << m.sat_remaining_battery[1]
           << "\n Time -> " << m.time << "\n"
@@ -321,6 +324,8 @@ class a_star {
             n->accumulated_cost = 0;
             n->parent = nullptr;
             n->state = &root;
+            n->sat0_action = nothing;
+            n->sat1_action = nothing;
             queue.push(n);
 
 
@@ -467,7 +472,7 @@ int main(int argc, char **argv) {
     std::vector<int> sat_remaining_battery{satellite_state::sat_max_battery[0],
                                             satellite_state::sat_max_battery[1]};
 
-    satellite_state root(0, initial_sat_bands, downlinked,
+    satellite_state root(-1, initial_sat_bands, downlinked,
      obs_to_do, sat_remaining_battery);
 
     a_star a;
