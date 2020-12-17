@@ -32,8 +32,8 @@ class search_problem {
 enum action{observe_up=0, observe_down=1, recharge=2, turn=3, downlink=4, nothing=5};
 
 struct node {
+    action sat0_action;
     action sat1_action;
-    action sat2_action;
     int accumulated_cost;
     satellite_state* state;
     node* parent;
@@ -104,10 +104,11 @@ class satellite_state {
         std::vector<bool> sat0(6, false); // Observe up, Observe down, turn, recharge, downlink, do_nothing
         std::vector<bool> sat1(6, false); // Observe up, Observe down, turn, recharge, downlink, do_nothing
         
-        // Check if satellites can observe up or down
+        // Check if satellites can observe up
         sat0[0] = obs_to_do[this->sat_band[0]][time];
         sat1[0] = obs_to_do[this->sat_band[1]][time];
 
+        // Check observe down
         sat0[1] = obs_to_do[this->sat_band[0] + 1][time];
         sat1[1] = obs_to_do[this->sat_band[1] + 1][time];
 
@@ -118,7 +119,7 @@ class satellite_state {
         // Check if satellites can recharge        
         sat0[3] = this->sat_remaining_battery[0] < sat_max_battery[0];
         sat1[3] = this->sat_remaining_battery[1] < sat_max_battery[1];
-
+        
         // Check if satellites can downlink
         bool found_obs_to_do = false;
         for(std::vector<bool> v : obs_to_do){
@@ -129,24 +130,25 @@ class satellite_state {
 
         if(!found_obs_to_do) {
             sat0[4] = this->sat_remaining_battery[0] >= sat_downlink_cost[0];
-            sat1[4] = this->sat_remaining_battery[1] >= sat_downlink_cost[0];
+            sat1[4] = this->sat_remaining_battery[1] >= sat_downlink_cost[1];
         }      
 
 
-        //Satellites can always do nothing
+        // Satellites can always do nothing
         sat0[5] = true;
         sat1[5] = true;
         
+        // Calculate all the possible operations
         for(int i = 0; i < 6; i++) {
             for(int j = 0; j < 6; j++) {
                 if(sat0[i] && sat1[j]) {
 
                     // Do not allow dual observation
-                    if((i == 1 || i == 0) && (j == 0 || j == 1)) continue;
+                    if((i == 0 || i == 1) && (j == 0 || j == 1)) continue;
 
                     // Add the operation
                     int s_time;
-                    if(time < 12) {
+                    if(time < 11) {
                         s_time = this->time + 1;
                     } else {
                         s_time = 0;
@@ -155,78 +157,80 @@ class satellite_state {
                     std::vector<bool> s_downlinked = downlinked;
                     std::vector<int> s_sat_remaining_battery = sat_remaining_battery;
                     std::vector<std::vector<bool>> s_obs_to_do = obs_to_do;
-                    action s1 = nothing;
-                    action s2 = nothing;
+                    action s0;
+                    action s1;
                     
-                    // Observe up
-                    if(i == 0) {
-                        obs_to_do[sat_band[0]][time] = false;
+
+                    // Check i combination
+
+                    switch (i)
+                    {
+                    case 0:
+                        s_obs_to_do[s_sat_band[0]][time] = false;
                         s_sat_remaining_battery[0] -= satellite_state::sat_turn_cost[0];
-                        s1 = observe_up;
-                    }
-
-                    if(j == 0) {
-                        obs_to_do[sat_band[1]][time] = false;
-                        s_sat_remaining_battery[1] -= satellite_state::sat_turn_cost[1];
-                        s2 = observe_up;
-
-                    }
-
-                    // Observe down
-                    if(i == 1) {
-                        obs_to_do[sat_band[0] + 1][time] = false;
+                        s0 = observe_up;
+                        break;
+                    case 1:
+                        s_obs_to_do[s_sat_band[0] + 1][time] = false;
                         s_sat_remaining_battery[0] -= satellite_state::sat_turn_cost[0];
-                        s1 = observe_down;
-                    }
-
-                    if(j == 1) {
-                        obs_to_do[sat_band[1] + 1][time] = false;
-                        s_sat_remaining_battery[1] -= satellite_state::sat_turn_cost[1];
-                        s2 = observe_down;
-                    }
-
-                    // Change band
-                    if(i == 2){
-                        s_sat_band[0] = (sat_band[0] == 0 ? 1:0);
+                        s0 = observe_down;
+                        break;
+                    case 2:
+                        s_sat_band[0] = (s_sat_band[0] == 0 ? 1:0);
                         s_sat_remaining_battery[0] -= satellite_state::sat_turn_cost[0];
-                        s1 = turn;
-                    }
-    
-                    if(j == 2){
-                        s_sat_band[1] = (sat_band[1] == 2 ? 1:2);
-                        s_sat_remaining_battery[1] -= satellite_state::sat_turn_cost[1];
-                        s2 = turn;
-                    }
-                    
-                    // Recharge action
-                    if(i == 3){
+                        s0 = turn;
+                        break;
+                    case 3:
                         s_sat_remaining_battery[0] += satellite_state::sat_recharge_battery[0];
-                        s1 = recharge;
-                    }
-                    if(j == 3) {
-                        s_sat_remaining_battery[1] += satellite_state::sat_recharge_battery[1];
-                        s2 = recharge;
-                    }
-                    
-                    // Downlink action
-                    if(i == 4){
+                        s0 = recharge;
+                        break;
+                    case 4:
                         s_downlinked[0] = true;
                         s_sat_remaining_battery[0] -= satellite_state::sat_downlink_cost[0];
-                        s1 = downlink;
+                        s0 = downlink;
+                        break;
+                    case 5:
+                        s0 = nothing;
+                        break;
                     }
-                    if(j == 4){
+
+
+                    switch (j)
+                    {
+                    case 0:
+                        s_obs_to_do[sat_band[1]][time] = false;
+                        s_sat_remaining_battery[1] -= satellite_state::sat_turn_cost[1];
+                        s1 = observe_up;
+                        break;
+                    case 1:
+                        s_obs_to_do[sat_band[1] + 1][time] = false;
+                        s_sat_remaining_battery[1] -= satellite_state::sat_turn_cost[1];
+                        s1 = observe_down;
+                        break;
+                    case 2:
+                        s_sat_band[1] = (sat_band[1] == 2 ? 1:2);
+                        s_sat_remaining_battery[1] -= satellite_state::sat_turn_cost[1];
+                        s1 = turn;
+                        break;
+                    case 3:
+                        s_sat_remaining_battery[1] += satellite_state::sat_recharge_battery[1];
+                        s1 = recharge;
+                        break;
+                    case 4:
                         s_downlinked[1] = true;
                         s_sat_remaining_battery[1] -= satellite_state::sat_downlink_cost[1];
-                        s2 = downlink;
-                    } 
-
-                    //If nothing is done, time passes. 
+                        s1 = downlink;
+                        break;
+                    case 5:
+                        s1 = nothing;
+                        break;
+                    }
 
                     satellite_state* s_state = new satellite_state(s_time, s_sat_band, s_downlinked, s_obs_to_do, s_sat_remaining_battery);
 
                     node* n = new node();
+                    n->sat0_action = s0;
                     n->sat1_action = s1;
-                    n->sat2_action = s2;
                     n->state = s_state;
 
                     v.push_back(n);
@@ -356,16 +360,16 @@ class a_star {
             node* s = queue.front();
             int i = 1;
 
-            std::vector<std::string> action_to_string{"Measure", "Measure", "Charge", "Turn", "Downlink", "IDLE"};
+            std::vector<std::string> action_to_string{"Measure up", "Measure down", "Charge", "Turn", "Downlink", "IDLE"};
 
             do {
-                std::string sat1_act = action_to_string[s->sat1_action];
-                std::string sat2_act = action_to_string[s->sat2_action];
+                std::string sat1_act = action_to_string[s->sat0_action];
+                std::string sat2_act = action_to_string[s->sat1_action];
                 std::cout << i << ". SAT1: " << sat1_act 
                 << ", SAT2: " << sat2_act << "\n";
                 s = s->parent;
                 i++;
-            } while (s->parent != nullptr);
+            } while (s != nullptr);
 
 
         }

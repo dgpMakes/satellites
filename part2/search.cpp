@@ -32,7 +32,7 @@ enum action{observe_up, observe_down, recharge, turn, downlink, nothing};
 
 struct node {
     action sat0_action;
-    action sat1_action;
+    action sat0_action;
     int accumulated_cost;
     satellite_state* state;
     satellite_state* parent;
@@ -200,7 +200,7 @@ class satellite_state {
 
                     node n;
                     n.sat0_action = s1;
-                    n.sat1_action = s2;
+                    n.sat0_action = s2;
                     n.parent = this;
                     n.state = &s_state;
 
