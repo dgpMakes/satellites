@@ -7,6 +7,7 @@
 #include "main.h"
 #include <algorithm>
 #include <list>
+#include <functional>
 
 class satellite_hasher { 
 public: 
@@ -18,6 +19,8 @@ public:
         return std::hash<std::string>()(to_hash); 
     } 
 };
+
+
 
 
 // // What every seach problem shall implement for the search algorithm to use
@@ -43,6 +46,11 @@ struct observation {
     int time;
     int band;
 };
+
+auto comp = [](node* lhs, node* rhs)
+    {
+        return lhs->accumulated_cost < rhs->accumulated_cost;
+    };
 
 /*
 In this problem we are assuming there are only 12 hours on a day
@@ -306,11 +314,21 @@ std::ostream &operator<<(std::ostream &os, const satellite_state &m) {
 
 
 // };
+template<typename lambda>
 class a_star {
 
+    private:
+    // std::priority_queue<node*, std::vector<node*>, decltype(comp)> queue(comp);
+    std::unordered_set<satellite_state, satellite_hasher> visited;
+
     public:
+
         
-        void search(satellite_state root){
+        void search(satellite_state root, lambda heuristic){
+
+            std::priority_queue<node* , std::vector<node*>, lambda > queue(heuristic);
+
+
             node* root_node = new node();
             root_node->accumulated_cost = 0;
             root_node->parent = nullptr;
@@ -331,10 +349,10 @@ class a_star {
             int m = 1;
             while(!queue.empty()){
                 m++;
-                if(queue.front()->state->is_goal_state()) break;
+                if(queue.top()->state->is_goal_state()) break;
 
                 // Extract element from queue
-                node* to_expand = queue.front();
+                node* to_expand = queue.top();
                 queue.pop();
 
                 // Get all sucessors and append them to the fifo queue
@@ -349,18 +367,17 @@ class a_star {
                     }
                 }
             }
-            std::cout << "Iterations: " << m << std::endl;
 
             if(queue.empty()) {
                 std::cout << "No solution found!!!\n";
                 return;
             }
 
-            std::cout << queue.front()->state << "\n Found a goal state!!!! \n";
-            std::cout << *queue.front()->state;
+            std::cout << queue.top()->state << "\n Found a goal state!!!! \n";
+            std::cout << *queue.top()->state;
 
             // Backtrace it
-            node* s = queue.front();
+            node* s = queue.top();
             int i = 1;
 
             std::vector<std::string> action_to_string{"Measure up", "Measure down", "Charge", "Turn", "Downlink", "IDLE"};
@@ -374,12 +391,13 @@ class a_star {
                 i++;
             } while (s != nullptr);
 
+            std::cout << "Opened nodes: " << visited.size() << std::endl;
+
+
 
         }
 
-    private:
-        std::queue<node*> queue;
-        std::unordered_set<satellite_state, satellite_hasher> visited;
+
 
 
 
@@ -473,12 +491,42 @@ int main(int argc, char **argv) {
     satellite_state root(0, initial_sat_bands, downlinked,
      obs_to_do, sat_remaining_battery);
 
-    a_star a;
+    auto dj = [](node* a, node* b) { return a->accumulated_cost > b->accumulated_cost; };
 
-    a.search(root);
+    auto h1 = []( node* a, node* b ) 
+    {
+        int a_count = 0;
+        int b_count = 0;
+        for(std::vector<bool> v : a->state->obs_to_do){
+            for(bool b : v){
+                a_count += (b ? 1:0);
+            }
+        }
+
+        for(std::vector<bool> v : b->state->obs_to_do){
+            for(bool b : v){
+                b_count += (b ? 1:0);
+            }
+        }
+
+        return a->accumulated_cost + a_count > b->accumulated_cost + b_count;
+    
+    };
+
+
+
+    a_star<decltype(h1)> a;
+
+    a.search(root, h1);
 
 
     
     return 0;
 
+}
+
+
+bool operator<(const node& one, const node& two)
+{
+    return one.accumulated_cost < two.accumulated_cost;
 }
