@@ -5,9 +5,6 @@
 #include <unordered_set>
 #include <queue>
 #include "main.h"
-#include <algorithm>
-#include <list>
-#include <functional>
 #include <bitset>
 
 #define OBSERVE_UP 2
@@ -18,19 +15,6 @@
 #define TURN 5
 #define PROBLEM_HEIGHT 4
 #define PROBLEM_WIDTH 12
-
-class satellite_hasher { 
-public: 
-    size_t operator()(const satellite_state& p) const
-    { 
-        std::stringstream s;
-        s << &p;
-        std::string to_hash = s.str();
-        return std::hash<std::string>()(to_hash); 
-    } 
-};
-
-
 
 
 // What every seach problem shall implement for the search algorithm to use
@@ -106,13 +90,6 @@ class satellite_state {
 
     // Cost of visibility band turn
     static std::vector<int> sat_turn_cost;
-
-        
-    
-
-    // static satellite_state* get_final_state(){
-    //     return satellite_state(0, 1, 3, new vector<bool> (obs_to_do.size(), true), true);
-    // };
 
 
     std::vector<node*> get_successors() {
@@ -270,7 +247,17 @@ class satellite_state {
         return time_eq && band_eq && obs_eq && downlinked_eq && remaining_battery_eq;
     };
 
+};
 
+class satellite_hasher { 
+public: 
+    size_t operator()(const satellite_state* p) const
+    { 
+        std::stringstream s;
+        s << p;
+        std::string to_hash = s.str();
+        return std::hash<std::string>()(to_hash); 
+    } 
 };
 
 std::ostream &operator<<(std::ostream &os, const satellite_state &m) { 
@@ -289,7 +276,6 @@ std::ostream &operator<<(std::ostream &os, const satellite_state &m) {
           return os;
     }
 
-
     /* Static parts */
     // Cost of making an observation
     std::vector<int> satellite_state::sat_observe_cost{0,0};
@@ -307,32 +293,17 @@ std::ostream &operator<<(std::ostream &os, const satellite_state &m) {
     std::vector<int> satellite_state::sat_max_battery{0,0};
 
 
-
-
-
-
-
-
-
-// class search_algorithm {
-
-
-
-// };
 template<typename lambda>
 class a_star {
 
     private:
-    // std::priority_queue<node*, std::vector<node*>, decltype(comp)> queue(comp);
-    std::unordered_set<satellite_state, satellite_hasher> visited;
+    std::unordered_set<satellite_state*, satellite_hasher> visited;
 
     public:
-
         
         void search(satellite_state root, lambda heuristic){
 
             std::priority_queue<node* , std::vector<node*>, lambda > queue(heuristic);
-
 
             node* root_node = new node();
             root_node->accumulated_cost = 0;
@@ -345,7 +316,7 @@ class a_star {
             for(node* root_successor : successors){
                 root_successor->parent = root_node;
                 queue.push(root_successor);
-                visited.insert(*(root_successor->state));
+                visited.insert(root_successor->state);
             }
 
 
@@ -364,11 +335,11 @@ class a_star {
                 std::vector<node*> sucessors = to_expand->state->get_successors();
                 for(node* sucessor : sucessors){
                     // Check if the node has already been visited
-                    if(visited.find(*(sucessor->state)) == visited.end()){
+                    if(visited.find(sucessor->state) == visited.end()){
                         sucessor->accumulated_cost = to_expand->accumulated_cost + 1;
                         sucessor->parent = to_expand;
                         queue.push(sucessor);
-                        visited.insert(*(sucessor->state));
+                        visited.insert(sucessor->state);
                     }
                 }
             }
@@ -403,18 +374,7 @@ class a_star {
             } while (s != nullptr);
 
             std::cout << "Opened nodes: " << visited.size() << std::endl;
-
-
-
         }
-
-
-
-
-
-
-
-
 };
 
 
@@ -525,7 +485,7 @@ int main(int argc, char **argv) {
         a.search(root, h1);
     } else {
         a_star<decltype(h1)> a;
-        a.search(root, h1);  
+        a.search(root, h1);
     }
 
 
