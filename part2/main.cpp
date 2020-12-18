@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <list>
 #include <functional>
+#include <bitset>
 
 #define OBSERVE_UP 2
 #define OBSERVE_DOWN 3
@@ -15,6 +16,8 @@
 #define NOTHING 0
 #define DOWNLINK 4
 #define TURN 5
+#define PROBLEM_HEIGHT 4
+#define PROBLEM_WIDTH 12
 
 class satellite_hasher { 
 public: 
@@ -69,14 +72,14 @@ class satellite_state {
     // Observations done
 
     public:
-        std::vector<std::vector<bool>> obs_to_do;
+        std::bitset<PROBLEM_WIDTH*PROBLEM_HEIGHT> obs_to_do;
         int time;
         std::vector<int> sat_band;
         std::vector<bool> downlinked;
         std::vector<int> sat_remaining_battery;
         
     satellite_state(int time, std::vector<int> sat_band, std::vector<bool> downlinked,
-     std::vector<std::vector<bool>> obs_to_do, std::vector<int> sat_remaining_battery) 
+     std::bitset<PROBLEM_WIDTH*PROBLEM_HEIGHT> obs_to_do, std::vector<int> sat_remaining_battery) 
     {
         this->obs_to_do = obs_to_do;
         this->time = time;
@@ -120,12 +123,12 @@ class satellite_state {
         std::vector<bool> sat1(6, false); // Observe up, Observe down, turn, recharge, downlink, do_nothing
         
         // Check if satellites can observe up
-        sat0[OBSERVE_UP] = obs_to_do[this->sat_band[0]][time] && (sat_remaining_battery[0] >= sat_observe_cost[0]);
-        sat1[OBSERVE_UP] = obs_to_do[this->sat_band[1]][time] && (sat_remaining_battery[1] >= sat_observe_cost[1]);
+        sat0[OBSERVE_UP] = obs_to_do[this->sat_band[0]*PROBLEM_WIDTH + time] && (sat_remaining_battery[0] >= sat_observe_cost[0]) == 1;
+        sat1[OBSERVE_UP] = obs_to_do[this->sat_band[1]*PROBLEM_WIDTH  + time] && (sat_remaining_battery[1] >= sat_observe_cost[1]) == 1;
 
         // Check observe down
-        sat0[OBSERVE_DOWN] = obs_to_do[this->sat_band[0] + 1][time] && (sat_remaining_battery[0] >= sat_observe_cost[0]);
-        sat1[OBSERVE_DOWN] = obs_to_do[this->sat_band[1] + 1][time] && (sat_remaining_battery[1] >= sat_observe_cost[1]);
+        sat0[OBSERVE_DOWN] = obs_to_do[(this->sat_band[0]+1)*PROBLEM_WIDTH + time] && (sat_remaining_battery[0] >= sat_observe_cost[0]) == 1;
+        sat1[OBSERVE_DOWN] = obs_to_do[(this->sat_band[1]+1)*PROBLEM_WIDTH + time] && (sat_remaining_battery[1] >= sat_observe_cost[1]) == 1;
 
         //Check if satellites can turn
         sat0[TURN] = sat_remaining_battery[0] >= sat_turn_cost[0];
@@ -136,12 +139,7 @@ class satellite_state {
         sat1[RECHARGE] = sat_remaining_battery[1] < sat_max_battery[1];
         
         // Check if satellites can downlink
-        bool found_obs_to_do = false;
-        for(std::vector<bool> v : obs_to_do){
-            for(bool b : v){
-                found_obs_to_do = found_obs_to_do | b;
-            }
-        }
+        bool found_obs_to_do = obs_to_do.count() != 0;
 
         if(!found_obs_to_do) {
             sat0[DOWNLINK] = this->sat_remaining_battery[0] >= sat_downlink_cost[0];
@@ -171,7 +169,7 @@ class satellite_state {
                     std::vector<int> s_sat_band = sat_band;
                     std::vector<bool> s_downlinked = downlinked;
                     std::vector<int> s_sat_remaining_battery = sat_remaining_battery;
-                    std::vector<std::vector<bool>> s_obs_to_do = obs_to_do;
+                    std::bitset<PROBLEM_WIDTH*PROBLEM_HEIGHT> s_obs_to_do = obs_to_do;
                     action s0;
                     action s1;
                     
@@ -181,12 +179,12 @@ class satellite_state {
                     switch (i)
                     {
                     case OBSERVE_UP:
-                        s_obs_to_do[s_sat_band[0]][time] = false;
+                        s_obs_to_do[s_sat_band[0]*PROBLEM_WIDTH + time] = 0;
                         s_sat_remaining_battery[0] -= satellite_state::sat_observe_cost[0];
                         s0 = observe_up;
                         break;
                     case OBSERVE_DOWN:
-                        s_obs_to_do[s_sat_band[0] + 1][time] = false;
+                        s_obs_to_do[(s_sat_band[0] + 1)*PROBLEM_WIDTH + time] = 0;
                         s_sat_remaining_battery[0] -= satellite_state::sat_observe_cost[0];
                         s0 = observe_down;
                         break;
@@ -213,12 +211,12 @@ class satellite_state {
                     switch (j)
                     {
                     case OBSERVE_UP:
-                        s_obs_to_do[sat_band[1]][time] = false;
+                        s_obs_to_do[sat_band[1] * PROBLEM_WIDTH + time] = 0;
                         s_sat_remaining_battery[1] -= satellite_state::sat_observe_cost[1];
                         s1 = observe_up;
                         break;
                     case OBSERVE_DOWN:
-                        s_obs_to_do[sat_band[1] + 1][time] = false;
+                        s_obs_to_do[(sat_band[1]+1) * PROBLEM_WIDTH + time] = 0;
                         s_sat_remaining_battery[1] -= satellite_state::sat_observe_cost[1];
                         s1 = observe_down;
                         break;
@@ -388,12 +386,12 @@ class a_star {
             int i = 1;
 
             std::vector<std::string> action_to_string(6);
-            action_to_string[OBSERVE_UP] = "Observe up";
+            action_to_string[OBSERVE_UP] = "Observe up  ";
             action_to_string[OBSERVE_DOWN] = "Observe down";
-            action_to_string[RECHARGE] = "Recharge";
-            action_to_string[NOTHING] = "Nothing";
-            action_to_string[TURN] = "Turn";
-            action_to_string[DOWNLINK] = "Downlink";
+            action_to_string[RECHARGE] = "Recharge    ";
+            action_to_string[NOTHING] = "Nothing     ";
+            action_to_string[TURN] = "Turn        ";
+            action_to_string[DOWNLINK] = "Downlink    ";
 
             do {
                 std::string sat1_act = action_to_string[s->sat0_action];
@@ -447,7 +445,7 @@ int main(int argc, char **argv) {
     std::vector<std::string> observations_list = split(lines[0], ";");
 
     // Analyze the scheduled observations in the file
-    std::vector<std::vector<bool>> obs_to_do(4, std::vector<bool>(12));
+    std::bitset<PROBLEM_WIDTH*PROBLEM_HEIGHT> obs_to_do;
     for(std::string obs : observations_list) {
 
         // Get rid of the separators
@@ -458,9 +456,9 @@ int main(int argc, char **argv) {
         std::vector<std::string> coordinates = split(obs, ",");
 
         // Create an observation and fill information
-        int c0 = std::stoi(coordinates[0]);
-        int c1 = std::stoi(coordinates[1]);
-        obs_to_do[c0][c1] = true;
+        int band = std::stoi(coordinates[0]);
+        int time = std::stoi(coordinates[1]);
+        obs_to_do[PROBLEM_WIDTH*band + time] = 1;
     }
 
     // Extract satellite one static parameters
@@ -508,21 +506,8 @@ int main(int argc, char **argv) {
 
     auto h1 = []( node* a, node* b ) 
     {
-        float a_count = 0;
-        float b_count = 0;
-        for(std::vector<bool> v : a->state->obs_to_do){
-            for(bool b : v){
-                a_count += (b ? 1:0);
-            }
-        }
-
-        for(std::vector<bool> v : b->state->obs_to_do){
-            for(bool b : v){
-                b_count += (b ? 1:0);
-            }
-        }
-
-
+        float a_count = a->state->obs_to_do.count();
+        float b_count = b->state->obs_to_do.count();
 
         return a->accumulated_cost + a_count > b->accumulated_cost + b_count;
     
