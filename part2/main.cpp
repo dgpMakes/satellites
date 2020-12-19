@@ -406,10 +406,16 @@ public:
 int main(int argc, char **argv)
 {
 
+    if(argc == 2 && ((std::string)argv[1] == "--help" || (std::string)argv[1] == "-h")){
+        std::cout << "Use " << argv[0] << " problem.prob heuristic\n"
+        << "Valid heuristics: dj, h1.\n";
+        return 0;
+    }
+
     if (argc != 3)
     {
         std::cerr << "The number of arguments is incorrect: " << argc;
-        return 0;
+        return -1;
     }
 
     std::string problem_file_content;
