@@ -7,10 +7,10 @@
 #include "main.h"
 #include <bitset>
 
-#define OBSERVE_UP 2
-#define OBSERVE_DOWN 3
-#define RECHARGE 1
-#define NOTHING 0
+#define OBSERVE_UP 0
+#define OBSERVE_DOWN 1
+#define RECHARGE 2
+#define NOTHING 3
 #define DOWNLINK 4
 #define TURN 5
 
@@ -154,8 +154,8 @@ public:
 
                         // If they intend to make the same observation, it is illegal.
                         if (sat_0_band_to_observe == sat_1_band_to_observe){
-                            std::cout << "sat0 band " << sat_band[0] << ", sat0 ob type " << i << std::endl;
-                            std::cout << "sat1 band " << sat_band[1] << ", sat1 ob type " << j << std::endl << std::endl;
+                        //     std::cout << "sat0 band " << sat_band[0] << ", sat0 ob type " << i << std::endl;
+                        //     std::cout << "sat1 band " << sat_band[1] << ", sat1 ob type " << j << std::endl << std::endl;
                             continue;
                         }
                     }
@@ -341,6 +341,8 @@ public:
         root_node->sat1_action = nothing;
 
         std::vector<node *> successors = root_node->state->get_successors();
+        float avg_exp = successors.size();
+
         for (node *root_successor : successors)
         {
             root_successor->parent = root_node;
@@ -362,6 +364,7 @@ public:
 
             // Get all sucessors and append them to the fifo queue
             std::vector<node *> sucessors = to_expand->state->get_successors();
+            avg_exp = (avg_exp + sucessors.size()) / 2;
             for (node *sucessor : sucessors)
             {
                 // Check if the node has already been visited
@@ -411,6 +414,8 @@ public:
         }
 
         std::cout << "Opened nodes: " << visited.size() << std::endl;
+        std::cout << "While iterations: " << m << std::endl;
+        std::cout << "Average successors: " << avg_exp << std::endl; 
     }
 };
 
