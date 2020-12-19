@@ -146,9 +146,20 @@ public:
                 if (sat0[i] && sat1[j])
                 {
 
-                    // Do not allow dual observation
-                    if ((i == 0 || i == 1) && (j == 0 || j == 1))
-                        continue;
+                    // Do not allow satellites make the same observation
+                    // If these conditions meet, there could be a conflict.
+                    if ((i == OBSERVE_DOWN || i == OBSERVE_UP) && (j == OBSERVE_DOWN || j == OBSERVE_UP)){
+                        int sat_0_band_to_observe = sat_band[0] + (i == OBSERVE_UP ? 0:1);
+                        int sat_1_band_to_observe = sat_band[1] + (j == OBSERVE_UP ? 0:1);
+
+                        // If they intend to make the same observation, it is illegal.
+                        if (sat_0_band_to_observe == sat_1_band_to_observe){
+                            std::cout << "sat0 band " << sat_band[0] << ", sat0 ob type " << i << std::endl;
+                            std::cout << "sat1 band " << sat_band[1] << ", sat1 ob type " << j << std::endl << std::endl;
+                            continue;
+                        }
+                    }
+                        
 
                     node *n = new node();
 
@@ -502,6 +513,13 @@ int main(int argc, char **argv)
         return a->accumulated_cost + a_count > b->accumulated_cost + b_count;
     };
 
+    auto h2 = [](node *a, node *b) {
+        int a_count = a->state->obs_to_do.count()/2;
+        int b_count = b->state->obs_to_do.count()/2;
+
+        return (float)a->accumulated_cost + a_count > (float)b->accumulated_cost + b_count;
+    };
+
     std::string heuristic_argument = argv[2];
 
     if (heuristic_argument == "dj")
@@ -514,10 +532,10 @@ int main(int argc, char **argv)
         a_star<decltype(h1)> a;
         a.search(root, h1);
     }
-    else
+    else if(heuristic_argument == "h2")
     {
-        a_star<decltype(h1)> a;
-        a.search(root, h1);
+        a_star<decltype(h2)> a;
+        a.search(root, h2);
     }
 
     return 0;
