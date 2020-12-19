@@ -1,13 +1,14 @@
 #include <vector>
 #include <iostream>
 
-
-std::vector<std::string> split(std::string s, std::string delimiter) {
+std::vector<std::string> split(std::string s, std::string delimiter)
+{
     std::size_t pos = 0;
     std::string sub;
     std::vector<std::string> extracted_lines;
 
-    while ((pos = s.find(delimiter)) != std::string::npos) {
+    while ((pos = s.find(delimiter)) != std::string::npos)
+    {
         sub = s.substr(0, pos);
         extracted_lines.push_back(sub);
         s.erase(0, pos + delimiter.length());
@@ -18,12 +19,12 @@ std::vector<std::string> split(std::string s, std::string delimiter) {
     return extracted_lines;
 }
 
-void replace(std::string & data, std::string search, std::string replace)
+void replace(std::string &data, std::string search, std::string replace)
 {
     // Get the first occurrence
     size_t pos = data.find(search);
     // Repeat till end is reached
-    while(pos != std::string::npos)
+    while (pos != std::string::npos)
     {
         // Replace this occurrence of Sub String
         data.replace(pos, search.size(), replace);
