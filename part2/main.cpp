@@ -13,6 +13,7 @@
 #define NOTHING 0
 #define DOWNLINK 4
 #define TURN 5
+
 #define PROBLEM_HEIGHT 4
 #define PROBLEM_WIDTH 12
 
@@ -56,8 +57,8 @@ class satellite_state {
     // Observations done
 
     public:
-        std::bitset<PROBLEM_WIDTH*PROBLEM_HEIGHT> obs_to_do;
         int time;
+        std::bitset<PROBLEM_WIDTH*PROBLEM_HEIGHT> obs_to_do;
         std::vector<int> sat_band;
         std::vector<bool> downlinked;
         std::vector<int> sat_remaining_battery;
@@ -136,12 +137,18 @@ class satellite_state {
                     // Do not allow dual observation
                     if((i == 0 || i == 1) && (j == 0 || j == 1)) continue;
 
+                    node* n = new node();
+
+
                     // Add the operation
                     int s_time;
                     if(time < 11) {
                         s_time = this->time + 1;
+                        n->accumulated_cost = 1;
+
                     } else {
                         s_time = 0;
+                        n->accumulated_cost = 12;
                     }
                     std::vector<int> s_sat_band = sat_band;
                     std::vector<bool> s_downlinked = downlinked;
@@ -218,7 +225,6 @@ class satellite_state {
 
                     satellite_state* s_state = new satellite_state(s_time, s_sat_band, s_downlinked, s_obs_to_do, s_sat_remaining_battery);
 
-                    node* n = new node();
                     n->sat0_action = s0;
                     n->sat1_action = s1;
                     n->state = s_state;
@@ -336,7 +342,9 @@ class a_star {
                 for(node* sucessor : sucessors){
                     // Check if the node has already been visited
                     if(visited.find(sucessor->state) == visited.end()){
-                        sucessor->accumulated_cost = to_expand->accumulated_cost + 1;
+                        // The accumulated cost already has the cost of expanding the node.
+                        // We sum the previous cost to get the new cost
+                        sucessor->accumulated_cost += to_expand->accumulated_cost;
                         sucessor->parent = to_expand;
                         queue.push(sucessor);
                         visited.insert(sucessor->state);
@@ -349,12 +357,7 @@ class a_star {
                 return;
             }
 
-            std::cout << queue.top()->state << "\n Found a goal state!!!! \n";
-            std::cout << *queue.top()->state;
-
-            // Backtrace it
-            node* s = queue.top();
-            int i = 1;
+            // std::cout << *queue.top()->state;
 
             std::vector<std::string> action_to_string(6);
             action_to_string[OBSERVE_UP] = "Observe up  ";
@@ -364,14 +367,21 @@ class a_star {
             action_to_string[TURN] = "Turn        ";
             action_to_string[DOWNLINK] = "Downlink    ";
 
+            // Backtrace it
+            node* s = queue.top();
+
+            std::vector<std::string> results;
             do {
                 std::string sat1_act = action_to_string[s->sat0_action];
                 std::string sat2_act = action_to_string[s->sat1_action];
-                std::cout << i << ". SAT1: " << sat1_act 
-                << ", SAT2: " << sat2_act << "\n";
+                results.push_back("SAT1: " + sat1_act 
+                + ", SAT2: " + sat2_act + "\n");
                 s = s->parent;
-                i++;
-            } while (s != nullptr);
+            } while (s->parent != nullptr);
+
+            for(int i = results.size(); i > 0; i--){
+                std::cout << results.size()-i+1 << ". " << results[i-1];
+            }
 
             std::cout << "Opened nodes: " << visited.size() << std::endl;
         }
