@@ -66,22 +66,25 @@ class satellite_state
 
 public:
     int time;
-    int associated_cost = 0;
-    action sat_1_action = nothing;
-    action sat_0_action = nothing;
+    int associated_cost;
+    action sat_1_action;
+    action sat_0_action;
     std::bitset<PROBLEM_WIDTH * PROBLEM_HEIGHT> obs_to_do;
     std::vector<int> sat_band;
     std::vector<bool> downlinked;
     std::vector<int> sat_remaining_battery;
 
     satellite_state(int time, std::vector<int> sat_band, std::vector<bool> downlinked,
-                    std::bitset<PROBLEM_WIDTH * PROBLEM_HEIGHT> obs_to_do, std::vector<int> sat_remaining_battery)
+                    std::bitset<PROBLEM_WIDTH * PROBLEM_HEIGHT> obs_to_do, std::vector<int> sat_remaining_battery, action sat_0_action, action sat_1_action, int associated_cost)
     {
         this->obs_to_do = obs_to_do;
         this->time = time;
         this->sat_band = sat_band;
         this->downlinked = downlinked;
         this->sat_remaining_battery = sat_remaining_battery;
+        this->associated_cost = associated_cost;
+        this->sat_0_action = sat_0_action;
+        this->sat_1_action = sat_1_action;
     }
 
     satellite_state() = default;
@@ -166,6 +169,8 @@ public:
                     s_time = this->time + 1;
 
 
+                    action s_sat_0_action;
+                    action s_sat_1_action;
                     std::vector<int> s_sat_band = sat_band;
                     std::vector<bool> s_downlinked = downlinked;
                     std::vector<int> s_sat_remaining_battery = sat_remaining_battery;
@@ -178,29 +183,29 @@ public:
                     case OBSERVE_UP:
                         s_obs_to_do[s_sat_band[0] * PROBLEM_WIDTH + time] = 0;
                         s_sat_remaining_battery[0] -= satellite_state::sat_observe_cost[0];
-                        sat_0_action = observe_up;
+                        s_sat_0_action = observe_up;
                         break;
                     case OBSERVE_DOWN:
                         s_obs_to_do[(s_sat_band[0] + 1) * PROBLEM_WIDTH + time] = 0;
                         s_sat_remaining_battery[0] -= satellite_state::sat_observe_cost[0];
-                        sat_0_action = observe_down;
+                        s_sat_0_action = observe_down;
                         break;
                     case TURN:
                         s_sat_band[0] = (s_sat_band[0] == 0 ? 1 : 0);
                         s_sat_remaining_battery[0] -= satellite_state::sat_turn_cost[0];
-                        sat_0_action = turn;
+                        s_sat_0_action = turn;
                         break;
                     case RECHARGE:
                         s_sat_remaining_battery[0] += satellite_state::sat_recharge_battery[0];
-                        sat_0_action = recharge;
+                        s_sat_0_action = recharge;
                         break;
                     case DOWNLINK:
                         s_downlinked[0] = true;
                         s_sat_remaining_battery[0] -= satellite_state::sat_downlink_cost[0];
-                        sat_0_action = downlink;
+                        s_sat_0_action = downlink;
                         break;
                     case NOTHING:
-                        sat_0_action = nothing;
+                        s_sat_0_action = nothing;
                         break;
                     }
 
@@ -209,36 +214,35 @@ public:
                     case OBSERVE_UP:
                         s_obs_to_do[sat_band[1] * PROBLEM_WIDTH + time] = 0;
                         s_sat_remaining_battery[1] -= satellite_state::sat_observe_cost[1];
-                        sat_1_action = observe_up;
+                        s_sat_1_action = observe_up;
                         break;
                     case OBSERVE_DOWN:
                         s_obs_to_do[(sat_band[1] + 1) * PROBLEM_WIDTH + time] = 0;
                         s_sat_remaining_battery[1] -= satellite_state::sat_observe_cost[1];
-                        sat_1_action = observe_down;
+                        s_sat_1_action = observe_down;
                         break;
                     case TURN:
                         s_sat_band[1] = (sat_band[1] == 2 ? 1 : 2);
                         s_sat_remaining_battery[1] -= satellite_state::sat_turn_cost[1];
-                        sat_1_action = turn;
+                        s_sat_1_action = turn;
                         break;
                     case RECHARGE:
                         s_sat_remaining_battery[1] += satellite_state::sat_recharge_battery[1];
-                        sat_1_action = recharge;
+                        s_sat_1_action = recharge;
                         break;
                     case DOWNLINK:
                         s_downlinked[1] = true;
                         s_sat_remaining_battery[1] -= satellite_state::sat_downlink_cost[1];
-                        sat_1_action = downlink;
+                        s_sat_1_action = downlink;
                         break;
                     case NOTHING:
-                        sat_1_action = nothing;
+                        s_sat_1_action = nothing;
                         break;
                     }
 
-                    //ets
-                    this->associated_cost = 1;
+                    int s_associated_cost = 1;
 
-                    satellite_state *s_state = new satellite_state(s_time, s_sat_band, s_downlinked, s_obs_to_do, s_sat_remaining_battery);
+                    satellite_state *s_state = new satellite_state(s_time, s_sat_band, s_downlinked, s_obs_to_do, s_sat_remaining_battery, s_sat_0_action, s_sat_1_action, s_associated_cost);
 
                     v.push_back(s_state);
                 }
@@ -333,6 +337,8 @@ public:
         {
             node *root_successors_node = new node();
             root_successors_node->parent = root_node;
+            root_successors_node->state = root_successor;
+            root_successors_node->accumulated_cost = root_successor->associated_cost;
             queue.push(root_successors_node);
             visited.insert(root_successor);
         }
@@ -360,7 +366,7 @@ public:
                     node* n = new node();
                     // The accumulated cost already has the cost of expanding the node.
                     // We sum the previous cost to get the new cost
-                    n->accumulated_cost = successor->associated_cost + parent_node->accumulated_cost;
+                    n->accumulated_cost = parent_node->accumulated_cost + successor->associated_cost;
                     n->parent = parent_node;
                     n->state = successor;
                     queue.push(n);
@@ -496,7 +502,7 @@ int main(int argc, char **argv)
                                            satellite_state::sat_max_battery[1]};
 
     satellite_state root(0, initial_sat_bands, downlinked,
-                         obs_to_do, sat_remaining_battery);
+                         obs_to_do, sat_remaining_battery, nothing, nothing, 0);
 
     auto dj = [](node *a, node *b) { return a->accumulated_cost > b->accumulated_cost; };
 
