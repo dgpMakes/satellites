@@ -1,6 +1,5 @@
 #include <vector>
 #include <iostream>
-#include <bits/stdc++.h>
 
 std::vector<std::string> split(std::string s, std::string delimiter)
 {
