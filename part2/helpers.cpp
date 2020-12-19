@@ -1,5 +1,6 @@
 #include <vector>
 #include <iostream>
+#include <bits/stdc++.h>
 
 std::vector<std::string> split(std::string s, std::string delimiter)
 {
@@ -17,6 +18,12 @@ std::vector<std::string> split(std::string s, std::string delimiter)
     extracted_lines.push_back(s);
 
     return extracted_lines;
+}
+
+int get_index(std::vector<int> v, int i)
+{
+    auto item = std::find(v.begin(), v.end(), i);
+    return (item != v.end() ? item-v.begin():-1);
 }
 
 void replace(std::string &data, std::string search, std::string replace)

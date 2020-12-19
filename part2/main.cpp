@@ -6,6 +6,7 @@
 #include <queue>
 #include "main.h"
 #include <bitset>
+#include <chrono>
 
 #define OBSERVE_UP 0
 #define OBSERVE_DOWN 1
@@ -50,6 +51,14 @@ struct observation
     int band;
 };
 
+struct results {
+    bool solution_found;
+    std::vector<std::string> results;
+    int steps;
+    int expanded_nodes;
+    int overall_cost;
+};
+
 auto comp = [](node *lhs, node *rhs) {
     return lhs->accumulated_cost < rhs->accumulated_cost;
 };
@@ -70,8 +79,9 @@ public:
     action sat_1_action;
     action sat_0_action;
     std::bitset<PROBLEM_WIDTH * PROBLEM_HEIGHT> obs_to_do;
-    std::vector<int> sat_band;
     std::vector<bool> downlinked;
+
+    std::vector<int> sat_band;
     std::vector<int> sat_remaining_battery;
 
     satellite_state(int time, std::vector<int> sat_band, std::vector<bool> downlinked,
@@ -320,7 +330,7 @@ private:
     std::unordered_set<satellite_state *, satellite_hasher> visited;
 
 public:
-    void search(satellite_state root, lambda heuristic)
+    results search(satellite_state root, lambda heuristic)
     {
 
         std::priority_queue<node *, std::vector<node *>, lambda> queue(heuristic);
@@ -344,10 +354,10 @@ public:
         }
 
         // Infinite loop till a goal state is found
-        int m = 1;
+        int steps = 1;
         while (!queue.empty())
         {
-            m++;
+            steps++;
             if (queue.top()->state->is_goal_state())
                 break;
 
@@ -377,19 +387,20 @@ public:
 
         if (queue.empty())
         {
-            std::cout << "No solution found!!!\n";
-            return;
+            struct results nothing;
+            nothing.solution_found = false;
+            return nothing;
         }
 
         // std::cout << *queue.top()->state;
 
         std::vector<std::string> action_to_string(6);
-        action_to_string[OBSERVE_UP] = "Observe up  ";
-        action_to_string[OBSERVE_DOWN] = "Observe down";
-        action_to_string[RECHARGE] = "Recharge    ";
-        action_to_string[NOTHING] = "Nothing     ";
-        action_to_string[TURN] = "Turn        ";
-        action_to_string[DOWNLINK] = "Downlink    ";
+        action_to_string[OBSERVE_UP] = "Measure";
+        action_to_string[OBSERVE_DOWN] = "Measure";
+        action_to_string[RECHARGE] = "Charge";
+        action_to_string[NOTHING] = "IDLE";
+        action_to_string[TURN] = "Turn";
+        action_to_string[DOWNLINK] = "Downlink";
 
         // Backtrace it
         node *s = queue.top();
@@ -403,14 +414,14 @@ public:
             s = s->parent;
         } while (s->parent != nullptr);
 
-        for (int i = results.size(); i > 0; i--)
-        {
-            std::cout << results.size() - i + 1 << ". " << results[i - 1];
-        }
+        struct results r;
+        r.solution_found = true;
+        r.steps = steps;
+        r.expanded_nodes = visited.size();
+        r.results = results;
+        r.overall_cost = queue.top()->accumulated_cost;
 
-        std::cout << "Opened nodes: " << visited.size() << std::endl;
-        std::cout << "While iterations: " << m << std::endl;
-        std::cout << "Average successors: " << avg_exp << std::endl; 
+        return r;
     }
 };
 
@@ -522,21 +533,53 @@ int main(int argc, char **argv)
 
     std::string heuristic_argument = argv[2];
 
+    results r;
+
+    auto start_time = std::chrono::high_resolution_clock::now();
+
     if (heuristic_argument == "dj")
     {
         a_star<decltype(dj)> a;
-        a.search(root, dj);
+        r = a.search(root, dj);
     }
     else if (heuristic_argument == "h1")
     {
         a_star<decltype(h1)> a;
-        a.search(root, h1);
+        r = a.search(root, h1);
     }
     else if(heuristic_argument == "h2")
     {
         a_star<decltype(h2)> a;
-        a.search(root, h2);
+        r = a.search(root, h2);
     }
+
+    auto end_time = std::chrono::high_resolution_clock::now();
+
+    std::stringstream sol;
+
+    for (int i = r.results.size(); i > 0; i--)
+    {
+        sol << r.results.size() - i + 1 << ". " << r.results[i - 1];
+    }
+
+    std::stringstream stats;
+
+    float time = (float)std::chrono::duration_cast<std::chrono::nanoseconds>(end_time - start_time).count()/1000000000;
+
+    stats << "Overall time: " << time << std::endl;
+    stats << "Overall cost: " << r.overall_cost << std::endl;   
+    stats << "# Steps: " << r.steps << std::endl;
+    stats << "# Expansions: " << r.expanded_nodes << std::endl;
+
+    std::cout << sol.str();
+    std::cout << stats.str();
+
+    // Open the statistics file and write results to i
+    std::ofstream out_file((std::string)argv[1] + ".output", std::ofstream::out);
+
+    out_file << sol.str();
+    out_file << stats.str();
+    out_file.close();
 
     return 0;
 }
