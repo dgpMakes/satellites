@@ -66,7 +66,7 @@ class satellite_state
 
 public:
     int time;
-    int associated_cost;
+    int associated_cost = 0;
     action sat_1_action = nothing;
     action sat_0_action = nothing;
     std::bitset<PROBLEM_WIDTH * PROBLEM_HEIGHT> obs_to_do;
@@ -161,9 +161,6 @@ public:
                         }
                     }
                         
-
-                    node *n = new node();
-
                     // Add the operation
                     int s_time;
                     s_time = this->time + 1;
@@ -237,6 +234,9 @@ public:
                         sat_1_action = nothing;
                         break;
                     }
+
+                    //ets
+                    this->associated_cost = 1;
 
                     satellite_state *s_state = new satellite_state(s_time, s_sat_band, s_downlinked, s_obs_to_do, s_sat_remaining_battery);
 
@@ -346,11 +346,11 @@ public:
                 break;
 
             // Extract element from queue
-            node *parent = queue.top();
+            node *parent_node = queue.top();
             queue.pop();
 
             // Get all sucessors and append them to the fifo queue
-            std::vector<satellite_state *> successors = parent->state->get_successors();
+            std::vector<satellite_state *> successors = parent_node->state->get_successors();
             avg_exp = (avg_exp + successors.size()) / 2;
             for (satellite_state *successor : successors)
             {
@@ -360,8 +360,8 @@ public:
                     node* n = new node();
                     // The accumulated cost already has the cost of expanding the node.
                     // We sum the previous cost to get the new cost
-                    n->accumulated_cost = successor->associated_cost + parent->accumulated_cost;
-                    n->parent = parent;
+                    n->accumulated_cost = successor->associated_cost + parent_node->accumulated_cost;
+                    n->parent = parent_node;
                     n->state = successor;
                     queue.push(n);
                     visited.insert(successor);
