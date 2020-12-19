@@ -1,4 +1,9 @@
-Overall time: 0.000921046
-Overall cost: 4
-# Steps: 19
-# Expansions: 152
+1. SAT1: Measure, SAT2: Turn
+2. SAT1: Charge, SAT2: Measure
+3. SAT1: Downlink, SAT2: Measure
+4. SAT1: Charge, SAT2: IDLE
+5. SAT1: Downlink, SAT2: Downlink
+Overall time: 14.1862
+Overall cost: 12
+# Steps: 366427
+# Expansions: 2507205
