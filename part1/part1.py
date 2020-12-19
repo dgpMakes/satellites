@@ -72,9 +72,3 @@ problem.addConstraint(checkTime,("SAT3_13-16","SAT4","SAT5","SAT6_9-13"))
 
 print(problem.getSolution())
 print("Number of solutions -> " + str(len(problem.getSolutions())))
-
-
-
-
-
-
