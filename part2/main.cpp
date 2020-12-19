@@ -39,8 +39,6 @@ enum action
 
 struct node
 {
-    action sat0_action;
-    action sat1_action;
     int accumulated_cost;
     satellite_state *state;
     node *parent;
@@ -68,6 +66,9 @@ class satellite_state
 
 public:
     int time;
+    int associated_cost;
+    action sat_1_action = nothing;
+    action sat_0_action = nothing;
     std::bitset<PROBLEM_WIDTH * PROBLEM_HEIGHT> obs_to_do;
     std::vector<int> sat_band;
     std::vector<bool> downlinked;
@@ -101,9 +102,9 @@ public:
     // Cost of visibility band turn
     static std::vector<int> sat_turn_cost;
 
-    std::vector<node *> get_successors()
+    std::vector<satellite_state *> get_successors()
     {
-        std::vector<node *> v;
+        std::vector<satellite_state *> v;
         /* Operations definition */
         // Definir un array de booleanos, indicando si un satélite puede hacer una acción.
         std::vector<bool> sat0(6, false); // Observe up, Observe down, turn, recharge, downlink, do_nothing
@@ -165,22 +166,13 @@ public:
 
                     // Add the operation
                     int s_time;
-                    if (time < 11)
-                    {
-                        s_time = this->time + 1;
-                        n->accumulated_cost = 1;
-                    }
-                    else
-                    {
-                        s_time = 0;
-                        n->accumulated_cost = 12;
-                    }
+                    s_time = this->time + 1;
+
+
                     std::vector<int> s_sat_band = sat_band;
                     std::vector<bool> s_downlinked = downlinked;
                     std::vector<int> s_sat_remaining_battery = sat_remaining_battery;
                     std::bitset<PROBLEM_WIDTH *PROBLEM_HEIGHT> s_obs_to_do = obs_to_do;
-                    action s0;
-                    action s1;
 
                     // Check i combination
 
@@ -189,29 +181,29 @@ public:
                     case OBSERVE_UP:
                         s_obs_to_do[s_sat_band[0] * PROBLEM_WIDTH + time] = 0;
                         s_sat_remaining_battery[0] -= satellite_state::sat_observe_cost[0];
-                        s0 = observe_up;
+                        sat_0_action = observe_up;
                         break;
                     case OBSERVE_DOWN:
                         s_obs_to_do[(s_sat_band[0] + 1) * PROBLEM_WIDTH + time] = 0;
                         s_sat_remaining_battery[0] -= satellite_state::sat_observe_cost[0];
-                        s0 = observe_down;
+                        sat_0_action = observe_down;
                         break;
                     case TURN:
                         s_sat_band[0] = (s_sat_band[0] == 0 ? 1 : 0);
                         s_sat_remaining_battery[0] -= satellite_state::sat_turn_cost[0];
-                        s0 = turn;
+                        sat_0_action = turn;
                         break;
                     case RECHARGE:
                         s_sat_remaining_battery[0] += satellite_state::sat_recharge_battery[0];
-                        s0 = recharge;
+                        sat_0_action = recharge;
                         break;
                     case DOWNLINK:
                         s_downlinked[0] = true;
                         s_sat_remaining_battery[0] -= satellite_state::sat_downlink_cost[0];
-                        s0 = downlink;
+                        sat_0_action = downlink;
                         break;
                     case NOTHING:
-                        s0 = nothing;
+                        sat_0_action = nothing;
                         break;
                     }
 
@@ -220,39 +212,35 @@ public:
                     case OBSERVE_UP:
                         s_obs_to_do[sat_band[1] * PROBLEM_WIDTH + time] = 0;
                         s_sat_remaining_battery[1] -= satellite_state::sat_observe_cost[1];
-                        s1 = observe_up;
+                        sat_1_action = observe_up;
                         break;
                     case OBSERVE_DOWN:
                         s_obs_to_do[(sat_band[1] + 1) * PROBLEM_WIDTH + time] = 0;
                         s_sat_remaining_battery[1] -= satellite_state::sat_observe_cost[1];
-                        s1 = observe_down;
+                        sat_1_action = observe_down;
                         break;
                     case TURN:
                         s_sat_band[1] = (sat_band[1] == 2 ? 1 : 2);
                         s_sat_remaining_battery[1] -= satellite_state::sat_turn_cost[1];
-                        s1 = turn;
+                        sat_1_action = turn;
                         break;
                     case RECHARGE:
                         s_sat_remaining_battery[1] += satellite_state::sat_recharge_battery[1];
-                        s1 = recharge;
+                        sat_1_action = recharge;
                         break;
                     case DOWNLINK:
                         s_downlinked[1] = true;
                         s_sat_remaining_battery[1] -= satellite_state::sat_downlink_cost[1];
-                        s1 = downlink;
+                        sat_1_action = downlink;
                         break;
                     case NOTHING:
-                        s1 = nothing;
+                        sat_1_action = nothing;
                         break;
                     }
 
                     satellite_state *s_state = new satellite_state(s_time, s_sat_band, s_downlinked, s_obs_to_do, s_sat_remaining_battery);
 
-                    n->sat0_action = s0;
-                    n->sat1_action = s1;
-                    n->state = s_state;
-
-                    v.push_back(n);
+                    v.push_back(s_state);
                 }
             }
         }
@@ -337,17 +325,16 @@ public:
         root_node->accumulated_cost = 0;
         root_node->parent = nullptr;
         root_node->state = &root;
-        root_node->sat0_action = nothing;
-        root_node->sat1_action = nothing;
 
-        std::vector<node *> successors = root_node->state->get_successors();
-        float avg_exp = successors.size();
+        std::vector<satellite_state *> root_successors = root_node->state->get_successors();
+        float avg_exp = root_successors.size();
 
-        for (node *root_successor : successors)
+        for (satellite_state* root_successor : root_successors)
         {
-            root_successor->parent = root_node;
-            queue.push(root_successor);
-            visited.insert(root_successor->state);
+            node *root_successors_node = new node();
+            root_successors_node->parent = root_node;
+            queue.push(root_successors_node);
+            visited.insert(root_successor);
         }
 
         // Infinite loop till a goal state is found
@@ -359,23 +346,25 @@ public:
                 break;
 
             // Extract element from queue
-            node *to_expand = queue.top();
+            node *parent = queue.top();
             queue.pop();
 
             // Get all sucessors and append them to the fifo queue
-            std::vector<node *> sucessors = to_expand->state->get_successors();
-            avg_exp = (avg_exp + sucessors.size()) / 2;
-            for (node *sucessor : sucessors)
+            std::vector<satellite_state *> successors = parent->state->get_successors();
+            avg_exp = (avg_exp + successors.size()) / 2;
+            for (satellite_state *successor : successors)
             {
                 // Check if the node has already been visited
-                if (visited.find(sucessor->state) == visited.end())
+                if (visited.find(successor) == visited.end())
                 {
+                    node* n = new node();
                     // The accumulated cost already has the cost of expanding the node.
                     // We sum the previous cost to get the new cost
-                    sucessor->accumulated_cost += to_expand->accumulated_cost;
-                    sucessor->parent = to_expand;
-                    queue.push(sucessor);
-                    visited.insert(sucessor->state);
+                    n->accumulated_cost = successor->associated_cost + parent->accumulated_cost;
+                    n->parent = parent;
+                    n->state = successor;
+                    queue.push(n);
+                    visited.insert(successor);
                 }
             }
         }
@@ -402,8 +391,8 @@ public:
         std::vector<std::string> results;
         do
         {
-            std::string sat1_act = action_to_string[s->sat0_action];
-            std::string sat2_act = action_to_string[s->sat1_action];
+            std::string sat1_act = action_to_string[s->state->sat_0_action];
+            std::string sat2_act = action_to_string[s->state->sat_1_action];
             results.push_back("SAT1: " + sat1_act + ", SAT2: " + sat2_act + "\n");
             s = s->parent;
         } while (s->parent != nullptr);
