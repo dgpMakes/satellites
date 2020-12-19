@@ -9,7 +9,7 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${fileDirname}/cosmos",
-            "args": ["part2/problem.prob", "a"],
+            "args": ["part2/problem.prob", "h1"],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
             "environment": [],

@@ -1,2 +1,2 @@
 cosmos: main.cpp
-	g++ main.cpp helpers.cpp --std=c++17 -O3 -g -o cosmos
+	g++ main.cpp helpers.cpp --std=c++17 -g -o cosmos
