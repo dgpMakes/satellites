@@ -1,4 +1,20 @@
-Overall time: 1.012e-06
-Overall cost: 4
-# Steps: 68
-# Expansions: 0
+1. SAT1: Measure O-1, SAT2: IDLE O-1
+2. SAT1: Charge , SAT2: IDLE 
+3. SAT1: IDLE , SAT2: Measure 
+4. SAT1: IDLE , SAT2: IDLE 
+5. SAT1: Downlink O-1, SAT2: IDLE O-1
+6. SAT1: IDLE , SAT2: Charge 
+7. SAT1: IDLE , SAT2: Downlink 
+8. SAT1: Charge , SAT2: IDLE 
+9. SAT1: IDLE , SAT2: IDLE 
+10. SAT1: IDLE , SAT2: IDLE 
+11. SAT1: IDLE , SAT2: IDLE 
+12. SAT1: IDLE , SAT2: Charge 
+13. SAT1: IDLE , SAT2: IDLE 
+14. SAT1: Measure O-1, SAT2: IDLE O-1
+15. SAT1: Charge , SAT2: IDLE 
+16. SAT1: Downlink O-1, SAT2: IDLE O-1
+Overall time: 5.49531
+Overall cost: 6
+# Steps: 199
+# Expansions: 1187
