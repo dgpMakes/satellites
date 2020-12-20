@@ -61,11 +61,15 @@ problem.addConstraint(checkSAT, ("SAT5", "SAT4"))
 def checkTime(SAT3, SAT4, SAT5, SAT6):
 
     # ad-hoc strategy
-    if (SAT3 == 7 or SAT4 == 7 or SAT5 == 7 or SAT6 == 7) and (SAT3 == 12 or SAT4 == 12 or SAT5 == 12 or SAT6 == 12):
-        sol = ((SAT3 == 7 or SAT4 == 12) and SAT5 != 7 and SAT5 != 12 and SAT6 != 7) or ((SAT5 == 7 or SAT6 == 12 or SAT5 == 12) and SAT4 != 12 and SAT3 != 7)
-        return sol
+    if (anyEqual(SAT3,SAT4,SAT5,SAT6,7)) and (anyEqual(SAT3,SAT4,SAT5,SAT6,12)):
+             sol = ((SAT3 == 7 or SAT4 == 12) and SAT5 != 7 and SAT5 != 12 and SAT6 != 7) or ((SAT5 == 7 or SAT6 == 12 or SAT5 == 12) and SAT4 != 12 and SAT3 != 7)
+             return sol
 
     return True
+
+def anyEqual(u,x,y,z,a):
+    return (u == a or x == a or y == a or z == a)
+
 
 problem.addConstraint(checkTime,("SAT3_13-16","SAT4","SAT5","SAT6_9-13"))
 
