@@ -681,12 +681,17 @@ int main(int argc, char **argv)
     std::cout << sol.str();
     std::cout << stats.str();
 
-    // Open the statistics file and write results to i
-    std::ofstream out_file((std::string)argv[1] + ".output", std::ofstream::out);
+    // Open the output file and write soplutions to it
+    std::ofstream output((std::string)argv[1] + ".output", std::ofstream::out);
 
-    out_file << sol.str();
-    out_file << stats.str();
-    out_file.close();
+    // Open the output file and write soplutions to it
+    std::ofstream statistics((std::string)argv[1] + ".statistics", std::ofstream::out);
+
+    output << sol.str();
+    statistics << stats.str();
+
+    output.close();
+    statistics.close();
 
     return 0;
 }
