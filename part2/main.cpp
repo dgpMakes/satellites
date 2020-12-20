@@ -595,6 +595,11 @@ int main(int argc, char **argv)
         int obs_cost = std::min(satellite_state::sat_observe_cost[0], satellite_state::sat_observe_cost[1]);
         int dl_cost = std::min(satellite_state::sat_downlink_cost[0], satellite_state::sat_downlink_cost[1]);
 
+        int total_difference_height = 0;
+
+            for(int i = 0; i<obs_count;i++){
+                total_difference_height += (abs(obs[i].band - sat_band[0])+abs(obs[i].band - sat_band[1]));
+            }
         int heuristic_a = left_observations_a * obs_cost + left_downlinks_a * dl_cost;
         int heuristic_b = left_observations_b * obs_cost + left_downlinks_b * dl_cost;
         return a->accumulated_cost + heuristic_a > b->accumulated_cost + heuristic_b;
