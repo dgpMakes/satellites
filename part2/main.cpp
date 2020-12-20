@@ -249,13 +249,13 @@ public:
                         for(int d = 0; d < child_measurement_status.size(); d++){
                             if (child_measurement_status[d] == STATUS_SAT_0_MEASURED){
                                 child_measurement_status[d] = STATUS_DOWNLINKED;
+                                child_sat_0_action.action_data = d;
                                 break;
                             }
                         }                        
                         child_sat_remaining_battery[0] -= satellite_state::sat_downlink_cost[0];
                         child_associated_cost += satellite_state::sat_downlink_cost[0];
                         child_sat_0_action.executed_action = downlink;
-                        child_sat_0_action.action_data = index;
                         break;
                     case NOTHING:
                         child_sat_0_action.executed_action = nothing;
@@ -270,6 +270,7 @@ public:
                         child_sat_remaining_battery[1] -= satellite_state::sat_observe_cost[1];
                         child_associated_cost += satellite_state::sat_observe_cost[1];
                         child_sat_1_action.executed_action = observe_up;
+                        child_sat_1_action.action_data = index;
                         break;
                     case OBSERVE_DOWN:
                         index = get_index(child_measurement_coordinates, (sat_band[1] + 1) * PROBLEM_WIDTH + (time%12));
@@ -277,6 +278,7 @@ public:
                         child_sat_remaining_battery[1] -= satellite_state::sat_observe_cost[1];
                         child_associated_cost += satellite_state::sat_observe_cost[1];
                         child_sat_1_action.executed_action = observe_down;
+                        child_sat_1_action.action_data = index;
                         break;
                     case TURN:
                         child_sat_band[1] = (sat_band[1] == 2 ? 1 : 2);
@@ -292,6 +294,7 @@ public:
                         for(int d = 0; d < child_measurement_status.size(); d++){
                             if (child_measurement_status[d] == STATUS_SAT_1_MEASURED){
                                 child_measurement_status[d] = STATUS_DOWNLINKED;
+                                child_sat_1_action.action_data = d;
                                 break;
                             }
                         }  
@@ -455,10 +458,8 @@ public:
         std::vector<std::string> results;
         do
         {
-            action a_0;
-            a_0.executed_action = s->state->sat_0_action.executed_action;
-            action a_1;
-            a_1.executed_action = s->state->sat_0_action.executed_action;
+            action a_0 = s->state->sat_0_action;
+            action a_1 = s->state->sat_1_action;
 
             std::string sat_0_data = "";
             std::string sat_1_data = "";
@@ -469,8 +470,8 @@ public:
             if(a_1.executed_action == OBSERVE_DOWN || a_1.executed_action == OBSERVE_UP || a_1.executed_action == DOWNLINK)
                 sat_1_data = "O" + std::to_string(a_1.action_data);
 
-            std::string sat_0_act = action_to_string[s->state->sat_0_action.executed_action];
-            std::string sat_1_act = action_to_string[s->state->sat_1_action.executed_action];
+            std::string sat_0_act = action_to_string[a_0.executed_action];
+            std::string sat_1_act = action_to_string[a_1.executed_action];
             
             results.push_back("SAT1: " + sat_0_act + " " + sat_0_data + ", SAT2: " + sat_1_act + " " + sat_1_data + "\n");
             s = s->parent;
