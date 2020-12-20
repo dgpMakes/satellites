@@ -35,3 +35,5 @@ part2/cosmos
 .vscode/*
 part2/main
 part2/cosmos.dSYM
+*.output
+*.statistics
