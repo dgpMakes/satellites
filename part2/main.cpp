@@ -619,17 +619,48 @@ int main(int argc, char **argv)
         int obs_cost = std::min(satellite_state::sat_observe_cost[0], satellite_state::sat_observe_cost[1]);
         int dl_cost = std::min(satellite_state::sat_downlink_cost[0], satellite_state::sat_downlink_cost[1]);
 
-        int total_difference_height_a = 0;
+        std::vector<int> bands_to_visit_a{0,1,2,3};
 
-        for(int i = 0; i<a->state->measurement_status.size(); i++){
-            // If not measured yet
-            if(a->state->measurement_status[i] == 0){
-                total_difference_height_a += abs(a->state->measurement_coordinates[i]%4 - a->state->sat_band[0]);
-            }
+        /* For node a */
+        // Remove all the bands that are in the reach of the satellite
+        remove_vector_element(&bands_to_visit_a, a->state->sat_band[0]);
+        remove_vector_element(&bands_to_visit_a, a->state->sat_band[0] + 1);
+        remove_vector_element(&bands_to_visit_a, a->state->sat_band[1]);
+        remove_vector_element(&bands_to_visit_a, a->state->sat_band[1] + 1);
+
+        // Check of there is any measurement to be done in the bands that are not covered by the satellites
+        // If there is any measurement to do, then add one to the cost
+        int counting_a = 0;
+        for(int band : bands_to_visit_a){
+            auto start = a->state->measurement_status.begin() + PROBLEM_WIDTH * band;
+            auto end = a->state->measurement_status.begin() + PROBLEM_WIDTH * band + 12;
+            counting_a += std::count(start, end, 0) == 0 ? 0:1;
         }
 
-        int heuristic_a = left_observations_a * obs_cost + left_downlinks_a * dl_cost;
-        int heuristic_b = left_observations_b * obs_cost + left_downlinks_b * dl_cost;
+
+        /* For node b */
+        std::vector<int> bands_to_visit_b{0,1,2,3};
+
+        // Remove all the bands that are in the reach of the satellite
+
+        remove_vector_element(&bands_to_visit_b, b->state->sat_band[0]);
+        remove_vector_element(&bands_to_visit_b, b->state->sat_band[0] + 1);
+        remove_vector_element(&bands_to_visit_b, b->state->sat_band[1]);
+        remove_vector_element(&bands_to_visit_b, b->state->sat_band[1] + 1);
+
+        // Check of there is any measurement to be done in the bands that are not covered by the satellites
+        // If there is any measurement to do, then add one to the cost
+        int counting_b = 0;
+        for(int band : bands_to_visit_b){
+            auto start = b->state->measurement_status.begin() + PROBLEM_WIDTH * band;
+            auto end = b->state->measurement_status.begin() + PROBLEM_WIDTH * band + 12;
+            counting_b += std::count(start, end, 0) == 0 ? 0:1;
+        }
+
+        std::cout << counting_a << counting_b << std::endl;
+
+        int heuristic_a = left_observations_a * obs_cost + left_downlinks_a * dl_cost + counting_a;
+        int heuristic_b = left_observations_b * obs_cost + left_downlinks_b * dl_cost + counting_b;
         return a->accumulated_cost + heuristic_a > b->accumulated_cost + heuristic_b;
     };
 

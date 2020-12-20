@@ -39,3 +39,9 @@ void replace(std::string &data, std::string search, std::string replace)
         pos = data.find(search, pos + replace.size());
     }
 }
+
+void remove_vector_element(std::vector<int> *v, int k) {
+
+    v->erase(std::remove(v->begin(), v->end(), k), v->end());
+
+}
