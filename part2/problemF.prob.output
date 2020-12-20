@@ -1,0 +1,26 @@
+1. SAT1: Measure, SAT2: IDLE
+2. SAT1: Charge, SAT2: Downlink
+3. SAT1: Measure, SAT2: IDLE
+4. SAT1: Charge, SAT2: IDLE
+5. SAT1: IDLE, SAT2: Charge
+6. SAT1: Downlink, SAT2: IDLE
+7. SAT1: Charge, SAT2: IDLE
+8. SAT1: Measure, SAT2: IDLE
+9. SAT1: IDLE, SAT2: IDLE
+10. SAT1: Charge, SAT2: IDLE
+11. SAT1: IDLE, SAT2: Downlink
+12. SAT1: IDLE, SAT2: Measure
+13. SAT1: IDLE, SAT2: IDLE
+14. SAT1: IDLE, SAT2: IDLE
+15. SAT1: Downlink, SAT2: Charge
+16. SAT1: IDLE, SAT2: Charge
+17. SAT1: Charge, SAT2: IDLE
+18. SAT1: IDLE, SAT2: Measure
+19. SAT1: IDLE, SAT2: Downlink
+20. SAT1: IDLE, SAT2: Charge
+21. SAT1: Measure, SAT2: Charge
+22. SAT1: Charge, SAT2: Downlink
+Overall time: 0.0119721
+Overall cost: 12
+# Steps: 691
+# Expansions: 5047

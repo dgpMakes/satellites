@@ -557,7 +557,7 @@ int main(int argc, char **argv)
 
 
     int obs_count = measurement_coordinates.size();
-    std::vector<std::bitset<2>> measurement_status(obs_count, false);
+    std::vector<std::bitset<2>> measurement_status(obs_count, 0);
 
 
     satellite_state root(0, initial_sat_bands, measurement_coordinates, 
@@ -586,20 +586,24 @@ int main(int argc, char **argv)
 
     auto h2 = [](node *a, node *b) {
 
-        int left_observations_a = std::count(a->state->measurement_status.begin(), a->state->measurement_status.end(), false);
-        int left_downlinks_a = std::count(a->state->is_downlinked.begin(), a->state->is_downlinked.end(), false);
+        int left_observations_a = std::count(a->state->measurement_status.begin(), a->state->measurement_status.end(), 0);
+        int left_downlinks_a = a->state->measurement_status.size()
+         - std::count(a->state->measurement_status.begin(), a->state->measurement_status.end(), 3);
 
-        int left_observations_b = std::count(b->state->measurement_status.begin(), b->state->measurement_status.end(), false);
-        int left_downlinks_b = std::count(b->state->is_downlinked.begin(), b->state->is_downlinked.end(), false);
+
+        int left_observations_b = std::count(b->state->measurement_status.begin(), b->state->measurement_status.end(), 0);
+        int left_downlinks_b = b->state->measurement_status.size()
+         - std::count(b->state->measurement_status.begin(), b->state->measurement_status.end(), 3);
 
         int obs_cost = std::min(satellite_state::sat_observe_cost[0], satellite_state::sat_observe_cost[1]);
         int dl_cost = std::min(satellite_state::sat_downlink_cost[0], satellite_state::sat_downlink_cost[1]);
 
-        int total_difference_height = 0;
+        // int total_difference_height = 0;
 
-            for(int i = 0; i<obs_count;i++){
-                total_difference_height += (abs(obs[i].band - sat_band[0])+abs(obs[i].band - sat_band[1]));
-            }
+        // for(int i = 0; i<obs_count;i++){
+        //     total_difference_height += (abs(obs[i].band - sat_band[0])+abs(obs[i].band - sat_band[1]));
+        // }
+
         int heuristic_a = left_observations_a * obs_cost + left_downlinks_a * dl_cost;
         int heuristic_b = left_observations_b * obs_cost + left_downlinks_b * dl_cost;
         return a->accumulated_cost + heuristic_a > b->accumulated_cost + heuristic_b;
