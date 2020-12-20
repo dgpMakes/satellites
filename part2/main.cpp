@@ -130,12 +130,12 @@ public:
         std::vector<bool> sat1(6, false); // Observe up, Observe down, turn, recharge, downlink, do_nothing
 
         // Check if satellites can observe up
-        sat0[OBSERVE_UP] = get_index(measurement_coordinates, this->sat_band[0] * PROBLEM_WIDTH + time) != -1 && (sat_remaining_battery[0] >= sat_observe_cost[0]) == 1;
-        sat1[OBSERVE_UP] = get_index(measurement_coordinates, this->sat_band[1] * PROBLEM_WIDTH + time) != -1 && (sat_remaining_battery[1] >= sat_observe_cost[1]) == 1;
+        sat0[OBSERVE_UP] = get_index(measurement_coordinates, this->sat_band[0] * PROBLEM_WIDTH + (time%12)) != -1 && (sat_remaining_battery[0] >= sat_observe_cost[0]) == 1;
+        sat1[OBSERVE_UP] = get_index(measurement_coordinates, this->sat_band[1] * PROBLEM_WIDTH + (time%12)) != -1 && (sat_remaining_battery[1] >= sat_observe_cost[1]) == 1;
 
         // Check observe down
-        sat0[OBSERVE_DOWN] = get_index(measurement_coordinates, (this->sat_band[0] + 1) * PROBLEM_WIDTH + time) != -1 && (sat_remaining_battery[0] >= sat_observe_cost[0]) == 1;
-        sat1[OBSERVE_DOWN] = get_index(measurement_coordinates, (this->sat_band[1] + 1) * PROBLEM_WIDTH + time) != -1 && (sat_remaining_battery[1] >= sat_observe_cost[1]) == 1;
+        sat0[OBSERVE_DOWN] = get_index(measurement_coordinates, (this->sat_band[0] + 1) * PROBLEM_WIDTH + (time%12)) != -1 && (sat_remaining_battery[0] >= sat_observe_cost[0]) == 1;
+        sat1[OBSERVE_DOWN] = get_index(measurement_coordinates, (this->sat_band[1] + 1) * PROBLEM_WIDTH + (time%12)) != -1 && (sat_remaining_battery[1] >= sat_observe_cost[1]) == 1;
 
         //Check if satellites can turn
         sat0[TURN] = sat_remaining_battery[0] >= sat_turn_cost[0];
@@ -203,7 +203,7 @@ public:
                     {
                     case OBSERVE_UP:
                         index = get_index(child_measurement_coordinates, child_sat_band[0] * PROBLEM_WIDTH + (time%12));
-                        child_is_measured[index] = true;
+                        child_is_measured[index] = true;  //ERROR in step13
                         child_sat_remaining_battery[0] -= satellite_state::sat_observe_cost[0];
                         child_sat_0_action = observe_up;
                         child_associated_cost += satellite_state::sat_observe_cost[0];
@@ -406,7 +406,7 @@ public:
             queue.pop();
 
             // Get all sucessors and append them to the fifo queue
-            std::vector<satellite_state *> successors = parent_node->state->get_successors();
+            std::vector<satellite_state *> successors = parent_node->state->get_successors(); // ERROR
             avg_exp = (avg_exp + successors.size()) / 2;
             for (satellite_state *successor : successors)
             {
@@ -560,26 +560,39 @@ int main(int argc, char **argv)
     satellite_state root(0, initial_sat_bands, is_downlinked, measurement_coordinates, 
                          is_measured, sat_remaining_battery, nothing, nothing, 0);
 
-    auto dj = [](node *a, node *b) { return a->accumulated_cost > b->accumulated_cost; };
+    auto dj = [](node *a, node *b) {return a->accumulated_cost > b->accumulated_cost;};
 
     auto h1 = [](node *a, node *b) {
 
-        float left_observations = std::count(a->state->is_measured.begin(), a->state->is_measured.end(), false);
-        float left_downlinks = std::count(a->state->is_downlinked.begin(), a->state->is_downlinked.end(), false);
+        int left_observations_a = std::count(a->state->is_measured.begin(), a->state->is_measured.end(), false);
+        int left_downlinks_a = std::count(a->state->is_downlinked.begin(), a->state->is_downlinked.end(), false);
+
+        int left_observations_b = std::count(b->state->is_measured.begin(), b->state->is_measured.end(), false);
+        int left_downlinks_b = std::count(b->state->is_downlinked.begin(), b->state->is_downlinked.end(), false);
 
         int obs_cost = std::min(satellite_state::sat_observe_cost[0], satellite_state::sat_observe_cost[1]);
         int dl_cost = std::min(satellite_state::sat_downlink_cost[0], satellite_state::sat_downlink_cost[1]);
 
-        int heuristic = left_observations * obs_cost + left_downlinks * dl_cost;
-        return a->accumulated_cost + heuristic > b->accumulated_cost + heuristic;
+        int heuristic_a = left_observations_a * obs_cost + left_downlinks_a * dl_cost;
+        int heuristic_b = left_observations_b * obs_cost + left_downlinks_b * dl_cost;
+        return a->accumulated_cost + heuristic_a > b->accumulated_cost + heuristic_b;
     };
 
-    // auto h2 = [](node *a, node *b) {
-    //     int a_count = a->state->obs_to_do.count()/2;
-    //     int b_count = b->state->obs_to_do.count()/2;
+    auto h2 = [](node *a, node *b) {
 
-    //     return (float)a->accumulated_cost + a_count > (float)b->accumulated_cost + b_count;
-    // };
+        int left_observations_a = std::count(a->state->is_measured.begin(), a->state->is_measured.end(), false);
+        int left_downlinks_a = std::count(a->state->is_downlinked.begin(), a->state->is_downlinked.end(), false);
+
+        int left_observations_b = std::count(b->state->is_measured.begin(), b->state->is_measured.end(), false);
+        int left_downlinks_b = std::count(b->state->is_downlinked.begin(), b->state->is_downlinked.end(), false);
+
+        int obs_cost = std::min(satellite_state::sat_observe_cost[0], satellite_state::sat_observe_cost[1]);
+        int dl_cost = std::min(satellite_state::sat_downlink_cost[0], satellite_state::sat_downlink_cost[1]);
+
+        int heuristic_a = left_observations_a * obs_cost + left_downlinks_a * dl_cost;
+        int heuristic_b = left_observations_b * obs_cost + left_downlinks_b * dl_cost;
+        return a->accumulated_cost + heuristic_a > b->accumulated_cost + heuristic_b;
+    };
 
     std::string heuristic_argument = argv[2];
 
@@ -597,10 +610,15 @@ int main(int argc, char **argv)
         a_star<decltype(h1)> a;
         r = a.search(root, h1);
     }
-    else if(heuristic_argument == "h2")
+    else if (heuristic_argument == "h2")
     {
-        // a_star<decltype(h2)> a;
-        // r = a.search(root, h2);
+        a_star<decltype(h2)> a;
+        r = a.search(root, h2);
+    }
+    else 
+    {
+        a_star<decltype(h1)> a;
+        r = a.search(root, h1);  
     }
 
     auto end_time = std::chrono::high_resolution_clock::now();
