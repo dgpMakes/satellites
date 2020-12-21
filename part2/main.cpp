@@ -21,7 +21,6 @@
 #define STATUS_SAT_1_MEASURED 2
 #define STATUS_DOWNLINKED 3
 
-
 #define PROBLEM_HEIGHT 4
 #define PROBLEM_WIDTH 12
 
@@ -45,7 +44,8 @@ enum act
     nothing = NOTHING
 };
 
-struct action {
+struct action
+{
 
     act executed_action;
     int action_data;
@@ -53,11 +53,10 @@ struct action {
     // Set default values
     action()
     {
-    executed_action=nothing;
-    action_data=-1;
+        executed_action = nothing;
+        action_data = -1;
     }
 };
-
 
 struct node
 {
@@ -72,7 +71,8 @@ struct observation
     int band;
 };
 
-struct results {
+struct results
+{
     bool solution_found;
     std::vector<std::string> results;
     int steps;
@@ -100,19 +100,15 @@ public:
     action sat_1_action;
     action sat_0_action;
     std::vector<std::bitset<2>> measurement_status;
-    std::vector<int> measurement_coordinates;
-
     std::vector<int> sat_band;
     std::vector<int> sat_remaining_battery;
 
     satellite_state(int time, std::vector<int> sat_band,
-                    std::vector<int> measurement_coordinates, std::vector<std::bitset<2>> measurement_status, 
-                    std::vector<int> sat_remaining_battery, action sat_0_action, 
+                    std::vector<std::bitset<2>> measurement_status,
+                    std::vector<int> sat_remaining_battery, action sat_0_action,
                     action sat_1_action, int associated_cost)
-    {        
+    {
         this->measurement_status = measurement_status;
-        this->measurement_coordinates = measurement_coordinates;
-
         this->time = time;
         this->sat_band = sat_band;
         this->sat_remaining_battery = sat_remaining_battery;
@@ -139,208 +135,219 @@ public:
     // Cost of visibility band turn
     static std::vector<int> sat_turn_cost;
 
-    std::vector<satellite_state *> get_successors()
+    // Measurement coordinates
+    static std::vector<int> measurement_coordinates;
+
+    std::vector<satellite_state *> get_successors();
+    bool is_goal_state();
+    bool operator==(const satellite_state &other) const;
+};
+
+bool satellite_state::operator==(const satellite_state &other) const
+{
+    bool time_eq = this->time == other.time;
+    bool band_eq = this->sat_band == other.sat_band;
+    bool status_eq = this->measurement_status == other.measurement_status;
+    bool cost_eq = this->associated_cost == other.associated_cost;
+    bool a0_eq = this->sat_0_action.action_data == other.sat_0_action.action_data &&
+                 this->sat_0_action.executed_action == other.sat_0_action.executed_action;
+    bool a1_eq = this->sat_1_action.action_data == other.sat_1_action.action_data &&
+                 this->sat_1_action.executed_action == other.sat_1_action.executed_action;
+    bool remaining_battery_eq = this->sat_remaining_battery == other.sat_remaining_battery;
+
+    return time_eq && band_eq && status_eq && cost_eq && a0_eq && a1_eq && remaining_battery_eq;
+};
+
+std::vector<satellite_state *> satellite_state::get_successors()
+{
+    std::vector<satellite_state *> v;
+    /* Operations definition */
+    // Definir un array de booleanos, indicando si un satélite puede hacer una acción.
+    std::vector<bool> sat0(6, false); // Observe up, Observe down, turn, recharge, downlink, do_nothing
+    std::vector<bool> sat1(6, false); // Observe up, Observe down, turn, recharge, downlink, do_nothing
+
+    // Check if satellites can observe up
+    sat0[OBSERVE_UP] = get_index(satellite_state::measurement_coordinates, this->sat_band[0] * PROBLEM_WIDTH + (time % 12)) != -1 && (sat_remaining_battery[0] >= sat_observe_cost[0]) == 1;
+    sat1[OBSERVE_UP] = get_index(satellite_state::measurement_coordinates, this->sat_band[1] * PROBLEM_WIDTH + (time % 12)) != -1 && (sat_remaining_battery[1] >= sat_observe_cost[1]) == 1;
+
+    // Check observe down
+    sat0[OBSERVE_DOWN] = get_index(satellite_state::measurement_coordinates, (this->sat_band[0] + 1) * PROBLEM_WIDTH + (time % 12)) != -1 && (sat_remaining_battery[0] >= sat_observe_cost[0]) == 1;
+    sat1[OBSERVE_DOWN] = get_index(satellite_state::measurement_coordinates, (this->sat_band[1] + 1) * PROBLEM_WIDTH + (time % 12)) != -1 && (sat_remaining_battery[1] >= sat_observe_cost[1]) == 1;
+
+    //Check if satellites can turn
+    sat0[TURN] = sat_remaining_battery[0] >= sat_turn_cost[0];
+    sat1[TURN] = sat_remaining_battery[1] >= sat_turn_cost[1];
+
+    // Check if satellites can recharge
+    sat0[RECHARGE] = sat_remaining_battery[0] < sat_max_battery[0];
+    sat1[RECHARGE] = sat_remaining_battery[1] < sat_max_battery[1];
+
+    // Check if each satellite can downlink
+    bool can_sat_0_downlink = false;
+    bool can_sat_1_downlink = false;
+
+    // Check for each satellite if there is any measurement done and ready to downlink
+    for (int i = 0; i < measurement_status.size(); i++)
     {
-        std::vector<satellite_state *> v;
-        /* Operations definition */
-        // Definir un array de booleanos, indicando si un satélite puede hacer una acción.
-        std::vector<bool> sat0(6, false); // Observe up, Observe down, turn, recharge, downlink, do_nothing
-        std::vector<bool> sat1(6, false); // Observe up, Observe down, turn, recharge, downlink, do_nothing
+        can_sat_0_downlink = can_sat_0_downlink | (measurement_status[i] == STATUS_SAT_0_MEASURED);
+        can_sat_1_downlink = can_sat_1_downlink | (measurement_status[i] == STATUS_SAT_1_MEASURED);
+    }
 
-        // Check if satellites can observe up
-        sat0[OBSERVE_UP] = get_index(measurement_coordinates, this->sat_band[0] * PROBLEM_WIDTH + (time%12)) != -1 && (sat_remaining_battery[0] >= sat_observe_cost[0]) == 1;
-        sat1[OBSERVE_UP] = get_index(measurement_coordinates, this->sat_band[1] * PROBLEM_WIDTH + (time%12)) != -1 && (sat_remaining_battery[1] >= sat_observe_cost[1]) == 1;
+    sat0[DOWNLINK] = can_sat_0_downlink && this->sat_remaining_battery[0] >= sat_downlink_cost[0];
+    sat1[DOWNLINK] = can_sat_1_downlink && this->sat_remaining_battery[1] >= sat_downlink_cost[1];
 
-        // Check observe down
-        sat0[OBSERVE_DOWN] = get_index(measurement_coordinates, (this->sat_band[0] + 1) * PROBLEM_WIDTH + (time%12)) != -1 && (sat_remaining_battery[0] >= sat_observe_cost[0]) == 1;
-        sat1[OBSERVE_DOWN] = get_index(measurement_coordinates, (this->sat_band[1] + 1) * PROBLEM_WIDTH + (time%12)) != -1 && (sat_remaining_battery[1] >= sat_observe_cost[1]) == 1;
+    // Satellites can always do nothing
+    sat0[NOTHING] = true;
+    sat1[NOTHING] = true;
 
-        //Check if satellites can turn
-        sat0[TURN] = sat_remaining_battery[0] >= sat_turn_cost[0];
-        sat1[TURN] = sat_remaining_battery[1] >= sat_turn_cost[1];
-
-        // Check if satellites can recharge
-        sat0[RECHARGE] = sat_remaining_battery[0] < sat_max_battery[0];
-        sat1[RECHARGE] = sat_remaining_battery[1] < sat_max_battery[1];
-
-        // Check if each satellite can downlink
-        bool can_sat_0_downlink = false;
-        bool can_sat_1_downlink = false;
-
-        // Check for each satellite if there is any measurement done and ready to downlink
-        for(int i = 0; i < measurement_status.size(); i++) {
-            can_sat_0_downlink = can_sat_0_downlink | (measurement_status[i] == STATUS_SAT_0_MEASURED);
-            can_sat_1_downlink = can_sat_1_downlink | (measurement_status[i] == STATUS_SAT_1_MEASURED);
-        }
-
-        sat0[DOWNLINK] = can_sat_0_downlink && this->sat_remaining_battery[0] >= sat_downlink_cost[0];
-        sat1[DOWNLINK] = can_sat_1_downlink && this->sat_remaining_battery[1] >= sat_downlink_cost[1];
-        
-        // Satellites can always do nothing
-        sat0[NOTHING] = true;
-        sat1[NOTHING] = true;
-
-        // Calculate all the possible operations
-        for (int i = 0; i < 6; i++)
+    // Calculate all the possible operations
+    for (int i = 0; i < 6; i++)
+    {
+        for (int j = 0; j < 6; j++)
         {
-            for (int j = 0; j < 6; j++)
+            if (sat0[i] && sat1[j])
             {
-                if (sat0[i] && sat1[j])
+
+                // Do not allow satellites make the same observation
+                // If these conditions meet, there could be a conflict.
+                if ((i == OBSERVE_DOWN || i == OBSERVE_UP) && (j == OBSERVE_DOWN || j == OBSERVE_UP))
                 {
+                    int sat_0_band_to_observe = sat_band[0] + (i == OBSERVE_UP ? 0 : 1);
+                    int sat_1_band_to_observe = sat_band[1] + (j == OBSERVE_UP ? 0 : 1);
 
-                    // Do not allow satellites make the same observation
-                    // If these conditions meet, there could be a conflict.
-                    if ((i == OBSERVE_DOWN || i == OBSERVE_UP) && (j == OBSERVE_DOWN || j == OBSERVE_UP)){
-                        int sat_0_band_to_observe = sat_band[0] + (i == OBSERVE_UP ? 0:1);
-                        int sat_1_band_to_observe = sat_band[1] + (j == OBSERVE_UP ? 0:1);
+                    // If they intend to make the same observation, it is illegal.
+                    if (sat_0_band_to_observe == sat_1_band_to_observe)
+                    {
+                        continue;
+                    }
+                }
 
-                        // If they intend to make the same observation, it is illegal.
-                        if (sat_0_band_to_observe == sat_1_band_to_observe){
-                            continue;
+                // Add the operation
+                int child_time;
+                child_time = this->time + 1;
+
+                action child_sat_0_action;
+                action child_sat_1_action;
+                std::vector<int> child_sat_band = sat_band;
+                std::vector<int> child_sat_remaining_battery = sat_remaining_battery;
+
+                std::vector<std::bitset<2>> child_measurement_status = measurement_status;
+
+                int child_associated_cost = 0;
+
+                // Check satellite zero combinations
+                int index = -1;
+                switch (i)
+                {
+                case OBSERVE_UP:
+                    index = get_index(satellite_state::measurement_coordinates, child_sat_band[0] * PROBLEM_WIDTH + (time % 12));
+                    child_measurement_status[index] = STATUS_SAT_0_MEASURED;
+                    child_sat_remaining_battery[0] -= satellite_state::sat_observe_cost[0];
+                    child_sat_0_action.executed_action = observe_up;
+                    child_sat_0_action.action_data = index;
+                    child_associated_cost += satellite_state::sat_observe_cost[0];
+                    break;
+                case OBSERVE_DOWN:
+                    index = get_index(satellite_state::measurement_coordinates, (child_sat_band[0] + 1) * PROBLEM_WIDTH + (time % 12));
+                    child_measurement_status[index] = STATUS_SAT_0_MEASURED;
+                    child_sat_remaining_battery[0] -= satellite_state::sat_observe_cost[0];
+                    child_sat_0_action.executed_action = observe_down;
+                    child_sat_0_action.action_data = index;
+                    child_associated_cost += satellite_state::sat_observe_cost[0];
+                    break;
+                case TURN:
+                    child_sat_band[0] = (child_sat_band[0] == 0 ? 1 : 0);
+                    child_sat_remaining_battery[0] -= satellite_state::sat_turn_cost[0];
+                    child_sat_0_action.executed_action = turn;
+                    child_associated_cost += satellite_state::sat_turn_cost[0];
+                    break;
+                case RECHARGE:
+                    child_sat_remaining_battery[0] += satellite_state::sat_recharge_battery[0];
+                    child_sat_0_action.executed_action = recharge;
+                    break;
+                case DOWNLINK:
+                    for (int d = 0; d < child_measurement_status.size(); d++)
+                    {
+                        if (child_measurement_status[d] == STATUS_SAT_0_MEASURED)
+                        {
+                            child_measurement_status[d] = STATUS_DOWNLINKED;
+                            child_sat_0_action.action_data = d;
+                            break;
                         }
                     }
-                        
-                    // Add the operation
-                    int child_time;
-                    child_time = this->time + 1;
-
-                    action child_sat_0_action;
-                    action child_sat_1_action;
-                    std::vector<int> child_sat_band = sat_band;
-                    std::vector<int> child_sat_remaining_battery = sat_remaining_battery;
-
-                    std::vector<std::bitset<2>> child_measurement_status = measurement_status;
-                    std::vector<int> child_measurement_coordinates = measurement_coordinates;
-
-                    int child_associated_cost = 0;
-
-
-                    // Check satellite zero combinations
-                    int index = -1;
-                    switch (i)
-                    {
-                    case OBSERVE_UP:
-                        index = get_index(child_measurement_coordinates, child_sat_band[0] * PROBLEM_WIDTH + (time%12));
-                        child_measurement_status[index] = STATUS_SAT_0_MEASURED;
-                        child_sat_remaining_battery[0] -= satellite_state::sat_observe_cost[0];
-                        child_sat_0_action.executed_action = observe_up;
-                        child_sat_0_action.action_data = index;
-                        child_associated_cost += satellite_state::sat_observe_cost[0];
-                        break;
-                    case OBSERVE_DOWN:
-                        index = get_index(child_measurement_coordinates, (child_sat_band[0] + 1) * PROBLEM_WIDTH + (time%12));
-                        child_measurement_status[index] = STATUS_SAT_0_MEASURED;
-                        child_sat_remaining_battery[0] -= satellite_state::sat_observe_cost[0];
-                        child_sat_0_action.executed_action = observe_down;
-                        child_sat_0_action.action_data = index;
-                        child_associated_cost += satellite_state::sat_observe_cost[0];
-                        break;
-                    case TURN:
-                        child_sat_band[0] = (child_sat_band[0] == 0 ? 1 : 0);
-                        child_sat_remaining_battery[0] -= satellite_state::sat_turn_cost[0];
-                        child_sat_0_action.executed_action = turn;
-                        child_associated_cost += satellite_state::sat_turn_cost[0];
-                        break;
-                    case RECHARGE:
-                        child_sat_remaining_battery[0] += satellite_state::sat_recharge_battery[0];
-                        child_sat_0_action.executed_action = recharge;
-                        break;
-                    case DOWNLINK:
-                        for(int d = 0; d < child_measurement_status.size(); d++){
-                            if (child_measurement_status[d] == STATUS_SAT_0_MEASURED){
-                                child_measurement_status[d] = STATUS_DOWNLINKED;
-                                child_sat_0_action.action_data = d;
-                                break;
-                            }
-                        }                        
-                        child_sat_remaining_battery[0] -= satellite_state::sat_downlink_cost[0];
-                        child_associated_cost += satellite_state::sat_downlink_cost[0];
-                        child_sat_0_action.executed_action = downlink;
-                        break;
-                    case NOTHING:
-                        child_sat_0_action.executed_action = nothing;
-                        break;
-                    }
-
-                    switch (j)
-                    {
-                    case OBSERVE_UP:
-                        index = get_index(child_measurement_coordinates, sat_band[1] * PROBLEM_WIDTH + (time%12));
-                        child_measurement_status[index] = STATUS_SAT_1_MEASURED;
-                        child_sat_remaining_battery[1] -= satellite_state::sat_observe_cost[1];
-                        child_associated_cost += satellite_state::sat_observe_cost[1];
-                        child_sat_1_action.executed_action = observe_up;
-                        child_sat_1_action.action_data = index;
-                        break;
-                    case OBSERVE_DOWN:
-                        index = get_index(child_measurement_coordinates, (sat_band[1] + 1) * PROBLEM_WIDTH + (time%12));
-                        child_measurement_status[index] = STATUS_SAT_1_MEASURED;
-                        child_sat_remaining_battery[1] -= satellite_state::sat_observe_cost[1];
-                        child_associated_cost += satellite_state::sat_observe_cost[1];
-                        child_sat_1_action.executed_action = observe_down;
-                        child_sat_1_action.action_data = index;
-                        break;
-                    case TURN:
-                        child_sat_band[1] = (sat_band[1] == 2 ? 1 : 2);
-                        child_sat_remaining_battery[1] -= satellite_state::sat_turn_cost[1];
-                        child_associated_cost += satellite_state::sat_turn_cost[1];
-                        child_sat_1_action.executed_action = turn;
-                        break;
-                    case RECHARGE:
-                        child_sat_remaining_battery[1] += satellite_state::sat_recharge_battery[1];
-                        child_sat_1_action.executed_action = recharge;
-                        break;
-                    case DOWNLINK:
-                        for(int d = 0; d < child_measurement_status.size(); d++){
-                            if (child_measurement_status[d] == STATUS_SAT_1_MEASURED){
-                                child_measurement_status[d] = STATUS_DOWNLINKED;
-                                child_sat_1_action.action_data = d;
-                                break;
-                            }
-                        }  
-                        child_sat_remaining_battery[1] -= satellite_state::sat_downlink_cost[1];
-                        child_associated_cost += satellite_state::sat_downlink_cost[1];
-                        child_sat_1_action.executed_action = downlink;
-                        break;
-                    case NOTHING:
-                        child_sat_1_action.executed_action = nothing;
-                        break;
-                    }
-
-
-                    satellite_state *child_state = new satellite_state(child_time, child_sat_band, 
-                    child_measurement_coordinates, child_measurement_status, child_sat_remaining_battery, child_sat_0_action, 
-                    child_sat_1_action, child_associated_cost);
-
-                    v.push_back(child_state);
+                    child_sat_remaining_battery[0] -= satellite_state::sat_downlink_cost[0];
+                    child_associated_cost += satellite_state::sat_downlink_cost[0];
+                    child_sat_0_action.executed_action = downlink;
+                    break;
+                case NOTHING:
+                    child_sat_0_action.executed_action = nothing;
+                    break;
                 }
+
+                switch (j)
+                {
+                case OBSERVE_UP:
+                    index = get_index(satellite_state::measurement_coordinates, sat_band[1] * PROBLEM_WIDTH + (time % 12));
+                    child_measurement_status[index] = STATUS_SAT_1_MEASURED;
+                    child_sat_remaining_battery[1] -= satellite_state::sat_observe_cost[1];
+                    child_associated_cost += satellite_state::sat_observe_cost[1];
+                    child_sat_1_action.executed_action = observe_up;
+                    child_sat_1_action.action_data = index;
+                    break;
+                case OBSERVE_DOWN:
+                    index = get_index(satellite_state::measurement_coordinates, (sat_band[1] + 1) * PROBLEM_WIDTH + (time % 12));
+                    child_measurement_status[index] = STATUS_SAT_1_MEASURED;
+                    child_sat_remaining_battery[1] -= satellite_state::sat_observe_cost[1];
+                    child_associated_cost += satellite_state::sat_observe_cost[1];
+                    child_sat_1_action.executed_action = observe_down;
+                    child_sat_1_action.action_data = index;
+                    break;
+                case TURN:
+                    child_sat_band[1] = (sat_band[1] == 2 ? 1 : 2);
+                    child_sat_remaining_battery[1] -= satellite_state::sat_turn_cost[1];
+                    child_associated_cost += satellite_state::sat_turn_cost[1];
+                    child_sat_1_action.executed_action = turn;
+                    break;
+                case RECHARGE:
+                    child_sat_remaining_battery[1] += satellite_state::sat_recharge_battery[1];
+                    child_sat_1_action.executed_action = recharge;
+                    break;
+                case DOWNLINK:
+                    for (int d = 0; d < child_measurement_status.size(); d++)
+                    {
+                        if (child_measurement_status[d] == STATUS_SAT_1_MEASURED)
+                        {
+                            child_measurement_status[d] = STATUS_DOWNLINKED;
+                            child_sat_1_action.action_data = d;
+                            break;
+                        }
+                    }
+                    child_sat_remaining_battery[1] -= satellite_state::sat_downlink_cost[1];
+                    child_associated_cost += satellite_state::sat_downlink_cost[1];
+                    child_sat_1_action.executed_action = downlink;
+                    break;
+                case NOTHING:
+                    child_sat_1_action.executed_action = nothing;
+                    break;
+                }
+
+                satellite_state *child_state = new satellite_state(child_time, child_sat_band,
+                                                                    child_measurement_status, child_sat_remaining_battery,
+                                                                    child_sat_0_action, child_sat_1_action, 
+                                                                    child_associated_cost);
+
+                v.push_back(child_state);
             }
         }
+    }
 
-        return v;
-    };
+    return v;
+};
 
-    bool is_goal_state()
-    {
-        // Check that all have been downlinked
-        return std::count(measurement_status.begin(), measurement_status.end(), 3) == measurement_status.size();
-    };
-
-    bool operator==(const satellite_state &other) const
-    {
-        bool time_eq = this->time == other.time;
-        bool band_eq = this->sat_band == other.sat_band;
-        bool status_eq = this->measurement_status == other.measurement_status;
-        bool coord_eq = this->measurement_coordinates == other.measurement_coordinates;
-        bool cost_eq = this->associated_cost == other.associated_cost;
-        bool a0_eq = this->sat_0_action.action_data == other.sat_0_action.action_data && 
-        this->sat_0_action.executed_action == other.sat_0_action.executed_action;
-        bool a1_eq = this->sat_1_action.action_data == other.sat_1_action.action_data && 
-        this->sat_1_action.executed_action == other.sat_1_action.executed_action;
-        bool remaining_battery_eq = this->sat_remaining_battery == other.sat_remaining_battery;
-
-        return time_eq && band_eq && status_eq && coord_eq && cost_eq && a0_eq && a1_eq && remaining_battery_eq;
-    };
+bool satellite_state::is_goal_state()
+{
+    // Check that all have been downlinked
+    return std::count(measurement_status.begin(), measurement_status.end(), 3) == measurement_status.size();
 };
 
 class satellite_hasher
@@ -354,7 +361,6 @@ public:
         return std::hash<std::string>()(to_hash);
     }
 };
-
 
 /* Static parts */
 // Cost of making an observation
@@ -371,6 +377,8 @@ std::vector<int> satellite_state::sat_recharge_battery{0, 0};
 
 // Max battery capacity
 std::vector<int> satellite_state::sat_max_battery{0, 0};
+
+std::vector<int> satellite_state::measurement_coordinates;
 
 template <typename lambda>
 class a_star
@@ -393,7 +401,7 @@ public:
         std::vector<satellite_state *> root_successors = root_node->state->get_successors();
         float avg_exp = root_successors.size();
 
-        for (satellite_state* root_successor : root_successors)
+        for (satellite_state *root_successor : root_successors)
         {
             node *root_successors_node = new node();
             root_successors_node->parent = root_node;
@@ -423,7 +431,7 @@ public:
                 // Check if the node has already been visited
                 if (visited.find(successor) == visited.end())
                 {
-                    node* n = new node();
+                    node *n = new node();
                     // The accumulated cost already has the cost of expanding the node.
                     // We sum the previous cost to get the new cost
                     n->accumulated_cost = parent_node->accumulated_cost + successor->associated_cost;
@@ -464,15 +472,15 @@ public:
             std::string sat_0_data = "";
             std::string sat_1_data = "";
 
-            if(a_0.executed_action == OBSERVE_DOWN || a_0.executed_action == OBSERVE_UP || a_0.executed_action == DOWNLINK)
+            if (a_0.executed_action == OBSERVE_DOWN || a_0.executed_action == OBSERVE_UP || a_0.executed_action == DOWNLINK)
                 sat_0_data = "O" + std::to_string(a_0.action_data);
 
-            if(a_1.executed_action == OBSERVE_DOWN || a_1.executed_action == OBSERVE_UP || a_1.executed_action == DOWNLINK)
+            if (a_1.executed_action == OBSERVE_DOWN || a_1.executed_action == OBSERVE_UP || a_1.executed_action == DOWNLINK)
                 sat_1_data = "O" + std::to_string(a_1.action_data);
 
             std::string sat_0_act = action_to_string[a_0.executed_action];
             std::string sat_1_act = action_to_string[a_1.executed_action];
-            
+
             results.push_back("SAT1: " + sat_0_act + " " + sat_0_data + ", SAT2: " + sat_1_act + " " + sat_1_data + "\n");
             s = s->parent;
         } while (s->parent != nullptr);
@@ -491,9 +499,10 @@ public:
 int main(int argc, char **argv)
 {
 
-    if(argc == 2 && ((std::string)argv[1] == "--help" || (std::string)argv[1] == "-h")){
+    if (argc == 2 && ((std::string)argv[1] == "--help" || (std::string)argv[1] == "-h"))
+    {
         std::cout << "Use " << argv[0] << " problem.prob heuristic\n"
-        << "Valid heuristics: dj, h1, h2.\n";
+                  << "Valid heuristics: dj, h1, h2.\n";
         return 0;
     }
 
@@ -538,6 +547,7 @@ int main(int argc, char **argv)
         measurement_coordinates.push_back(PROBLEM_WIDTH * band + time);
     }
 
+
     // Extract satellite one static parameters
     replace(lines[1], " ", "");
     replace(lines[1], "SAT1:", "");
@@ -570,10 +580,11 @@ int main(int argc, char **argv)
     satellite_state::sat_max_battery[0] = std::stoi(sat0_data[4]);
     satellite_state::sat_max_battery[1] = std::stoi(sat1_data[4]);
 
+    satellite_state::measurement_coordinates = measurement_coordinates;
+
     std::vector<int> initial_sat_bands{0, 2};
     std::vector<int> sat_remaining_battery{satellite_state::sat_max_battery[0],
                                            satellite_state::sat_max_battery[1]};
-
 
     int obs_count = measurement_coordinates.size();
     std::vector<std::bitset<2>> measurement_status(obs_count, 0);
@@ -581,21 +592,17 @@ int main(int argc, char **argv)
     action initial_sat_0;
     action initial_sat_1;
 
-    satellite_state root(0, initial_sat_bands, measurement_coordinates, 
-                         measurement_status, sat_remaining_battery, initial_sat_0, initial_sat_1, 0);
+    satellite_state root(0, initial_sat_bands, measurement_status, 
+                        sat_remaining_battery, initial_sat_0, initial_sat_1, 0);
 
-    auto dj = [](node *a, node *b) {return a->accumulated_cost > b->accumulated_cost;};
+    auto dj = [](node *a, node *b) { return a->accumulated_cost > b->accumulated_cost; };
 
     auto h1 = [](node *a, node *b) {
-
         int left_observations_a = std::count(a->state->measurement_status.begin(), a->state->measurement_status.end(), 0);
-        int left_downlinks_a = a->state->measurement_status.size()
-         - std::count(a->state->measurement_status.begin(), a->state->measurement_status.end(), 3);
-
+        int left_downlinks_a = a->state->measurement_status.size() - std::count(a->state->measurement_status.begin(), a->state->measurement_status.end(), 3);
 
         int left_observations_b = std::count(b->state->measurement_status.begin(), b->state->measurement_status.end(), 0);
-        int left_downlinks_b = b->state->measurement_status.size()
-         - std::count(b->state->measurement_status.begin(), b->state->measurement_status.end(), 3);
+        int left_downlinks_b = b->state->measurement_status.size() - std::count(b->state->measurement_status.begin(), b->state->measurement_status.end(), 3);
 
         int obs_cost = std::min(satellite_state::sat_observe_cost[0], satellite_state::sat_observe_cost[1]);
         int dl_cost = std::min(satellite_state::sat_downlink_cost[0], satellite_state::sat_downlink_cost[1]);
@@ -606,20 +613,16 @@ int main(int argc, char **argv)
     };
 
     auto h2 = [](node *a, node *b) {
-
         int left_observations_a = std::count(a->state->measurement_status.begin(), a->state->measurement_status.end(), 0);
-        int left_downlinks_a = a->state->measurement_status.size()
-         - std::count(a->state->measurement_status.begin(), a->state->measurement_status.end(), 3);
-
+        int left_downlinks_a = a->state->measurement_status.size() - std::count(a->state->measurement_status.begin(), a->state->measurement_status.end(), 3);
 
         int left_observations_b = std::count(b->state->measurement_status.begin(), b->state->measurement_status.end(), 0);
-        int left_downlinks_b = b->state->measurement_status.size()
-         - std::count(b->state->measurement_status.begin(), b->state->measurement_status.end(), 3);
+        int left_downlinks_b = b->state->measurement_status.size() - std::count(b->state->measurement_status.begin(), b->state->measurement_status.end(), 3);
 
         int obs_cost = std::min(satellite_state::sat_observe_cost[0], satellite_state::sat_observe_cost[1]);
         int dl_cost = std::min(satellite_state::sat_downlink_cost[0], satellite_state::sat_downlink_cost[1]);
 
-        std::vector<int> bands_to_visit_a{0,1,2,3};
+        std::vector<int> bands_to_visit_a{0, 1, 2, 3};
 
         /* For node a */
         // Remove all the bands that are in the reach of the satellite
@@ -631,15 +634,15 @@ int main(int argc, char **argv)
         // Check of there is any measurement to be done in the bands that are not covered by the satellites
         // If there is any measurement to do, then add one to the cost
         int counting_a = 0;
-        for(int band : bands_to_visit_a){
+        for (int band : bands_to_visit_a)
+        {
             auto start = a->state->measurement_status.begin() + PROBLEM_WIDTH * band;
             auto end = a->state->measurement_status.begin() + PROBLEM_WIDTH * band + 12;
-            counting_a += std::count(start, end, 0) == 0 ? 0:1;
+            counting_a += std::count(start, end, 0) == 0 ? 0 : 1;
         }
 
-
         /* For node b */
-        std::vector<int> bands_to_visit_b{0,1,2,3};
+        std::vector<int> bands_to_visit_b{0, 1, 2, 3};
 
         // Remove all the bands that are in the reach of the satellite
 
@@ -651,10 +654,11 @@ int main(int argc, char **argv)
         // Check of there is any measurement to be done in the bands that are not covered by the satellites
         // If there is any measurement to do, then add one to the cost
         int counting_b = 0;
-        for(int band : bands_to_visit_b){
+        for (int band : bands_to_visit_b)
+        {
             auto start = b->state->measurement_status.begin() + PROBLEM_WIDTH * band;
             auto end = b->state->measurement_status.begin() + PROBLEM_WIDTH * band + 12;
-            counting_b += std::count(start, end, 0) == 0 ? 0:1;
+            counting_b += std::count(start, end, 0) == 0 ? 0 : 1;
         }
 
         std::cout << counting_a << counting_b << std::endl;
@@ -685,10 +689,10 @@ int main(int argc, char **argv)
         a_star<decltype(h2)> a;
         r = a.search(root, h2);
     }
-    else 
+    else
     {
         a_star<decltype(h1)> a;
-        r = a.search(root, h1);  
+        r = a.search(root, h1);
     }
 
     auto end_time = std::chrono::high_resolution_clock::now();
@@ -702,10 +706,10 @@ int main(int argc, char **argv)
 
     std::stringstream stats;
 
-    float time = (float)std::chrono::duration_cast<std::chrono::nanoseconds>(end_time - start_time).count()/1000000000;
+    float time = (float)std::chrono::duration_cast<std::chrono::nanoseconds>(end_time - start_time).count() / 1000000000;
 
     stats << "Overall time: " << time << std::endl;
-    stats << "Overall cost: " << r.overall_cost << std::endl;   
+    stats << "Overall cost: " << r.overall_cost << std::endl;
     stats << "# Steps: " << r.steps << std::endl;
     stats << "# Expansions: " << r.expanded_nodes << std::endl;
 
