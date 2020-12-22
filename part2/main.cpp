@@ -140,22 +140,22 @@ public:
 
     std::vector<satellite_state *> get_successors();
     bool is_goal_state();
-    bool operator==(const satellite_state &other) const;
 };
 
-bool satellite_state::operator==(const satellite_state &other) const
-{
-    bool time_eq = this->time == other.time;
-    bool band_eq = this->sat_band == other.sat_band;
-    bool status_eq = this->measurement_status == other.measurement_status;
-    bool cost_eq = this->associated_cost == other.associated_cost;
-    bool a0_eq = this->sat_0_action.action_data == other.sat_0_action.action_data &&
-                 this->sat_0_action.executed_action == other.sat_0_action.executed_action;
-    bool a1_eq = this->sat_1_action.action_data == other.sat_1_action.action_data &&
-                 this->sat_1_action.executed_action == other.sat_1_action.executed_action;
-    bool remaining_battery_eq = this->sat_remaining_battery == other.sat_remaining_battery;
 
-    return time_eq && band_eq && status_eq && cost_eq && a0_eq && a1_eq && remaining_battery_eq;
+struct PointedObjEq {
+    bool operator () ( satellite_state const * one, satellite_state const * two ) const {
+        bool time_eq = one->time%12 == two->time%12;
+        bool band_eq = one->sat_band == two->sat_band;
+        bool status_eq = one->measurement_status == two->measurement_status;
+        bool cost_eq = one->associated_cost == two->associated_cost;
+        bool a0_eq = one->sat_0_action.action_data == two->sat_0_action.action_data &&
+                    one->sat_0_action.executed_action == two->sat_0_action.executed_action;
+        bool a1_eq = one->sat_1_action.action_data == two->sat_1_action.action_data &&
+                    one->sat_1_action.executed_action == two->sat_1_action.executed_action;
+        bool remaining_battery_eq = one->sat_remaining_battery == two->sat_remaining_battery;
+        return time_eq && band_eq && status_eq && cost_eq && a0_eq && a1_eq && remaining_battery_eq;
+    }
 };
 
 std::vector<satellite_state *> satellite_state::get_successors()
@@ -356,8 +356,32 @@ public:
     size_t operator()(const satellite_state *p) const
     {
         std::stringstream s;
-        s << p;
+        s << "t" << p->time%12;
+        s << "s0rb" << p->sat_remaining_battery[0];
+        s << "s1rb" << p->sat_remaining_battery[1];
+
+
+        s << "mstat";
+        for (auto stat : p->measurement_status) {
+            s << stat;
+        }
+        
+        s << "ac" << p->associated_cost;
+
+        s << "s0b" << p->sat_band[0];
+        s << "s1b" << p->sat_band[1];
+
+        s << "s0d" << p->sat_0_action.action_data;
+        s << "s0a" << p->sat_0_action.executed_action;
+        s << "s1d" << p->sat_1_action.action_data;
+        s << "s1a" << p->sat_1_action.executed_action;
+
         std::string to_hash = s.str();
+        // std::cout << std::hash<std::string>()(to_hash) << "\n";
+
+        // std::chrono::milliseconds timespan(1); // or whatever
+        // std::this_thread::sleep_for(timespan);
+
         return std::hash<std::string>()(to_hash);
     }
 };
@@ -385,7 +409,7 @@ class a_star
 {
 
 private:
-    std::unordered_set<satellite_state *, satellite_hasher> visited;
+    std::unordered_set<satellite_state *, satellite_hasher, PointedObjEq> visited;
 
 public:
     results search(satellite_state root, lambda heuristic)
@@ -429,7 +453,7 @@ public:
             for (satellite_state *successor : successors)
             {
                 // Check if the node has already been visited
-                if (visited.find(successor) == visited.end())
+                if (visited.count(successor) == 0)
                 {
                     node *n = new node();
                     // The accumulated cost already has the cost of expanding the node.
