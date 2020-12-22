@@ -24,6 +24,12 @@
 #define PROBLEM_HEIGHT 4
 #define PROBLEM_WIDTH 12
 
+
+/*
+  .--.      .-'.      .--.      .--.      .--.      .--.      .`-.      .--.
+:::::.\::::::::.\:::::  STRUCTURES USED IN MAIN.CPP  ::.\::::::::.\::::::::.\
+'      `--'      `.-'      `--'      `--'      `--'      `-.'      `--'      `
+*/
 // The only thing that has a cost is passing time
 enum act
 {
@@ -76,6 +82,15 @@ In this problem we are assuming there are only 12 hours on a day
 There are only 4 bands and 3 possitions for the two considered satellites.
 */
 
+
+
+
+/*
+  .--.      .-'.      .--.      .--.      .--.      .--.      .`-.      .--.
+:::::.\::::::::.\::::::::.\      SATELLITE STATE     ::::::::.\::::::::.\::::::::.\
+'      `--'      `.-'      `--'      `--'      `--'      `-.'      `--'      `
+*/
+
 class satellite_state
 {
     /* Dynamic variables */
@@ -106,7 +121,7 @@ public:
 
     satellite_state() = default;
 
-    /* Static parts */
+    /* Static part of the problem */
     // Max battery capacity
     static std::vector<int> sat_max_battery;
 
@@ -125,27 +140,34 @@ public:
     // Measurement coordinates
     static std::vector<int> measurement_coordinates;
 
+    // CALLED FUNCTIONS
+    // Get the sucessors of a state
     std::vector<satellite_state *> get_successors();
+     
+    // Check if current state is the goal state
     bool is_goal_state();
 };
 
-struct PointedObjEq
-{
-    bool operator()(satellite_state const *one, satellite_state const *two) const
-    {
-        bool time_eq = one->time % 12 == two->time % 12;
-        bool band_eq = one->sat_band == two->sat_band;
-        bool status_eq = one->measurement_status == two->measurement_status;
-        bool cost_eq = one->associated_cost == two->associated_cost;
-        bool a0_eq = one->sat_0_action.action_data == two->sat_0_action.action_data &&
-                     one->sat_0_action.executed_action == two->sat_0_action.executed_action;
-        bool a1_eq = one->sat_1_action.action_data == two->sat_1_action.action_data &&
-                     one->sat_1_action.executed_action == two->sat_1_action.executed_action;
-        bool remaining_battery_eq = one->sat_remaining_battery == two->sat_remaining_battery;
-        return time_eq && band_eq && status_eq && cost_eq && a0_eq && a1_eq && remaining_battery_eq;
-    }
-};
+/* Intialize static parts of the satellite state */
+// Cost of making an observation
+std::vector<int> satellite_state::sat_observe_cost{0, 0};
 
+// Cost of downlinking
+std::vector<int> satellite_state::sat_downlink_cost{0, 0};
+
+// Cost of visibility band turn
+std::vector<int> satellite_state::sat_turn_cost{0, 0};
+
+// How much does battery increase per charge hour
+std::vector<int> satellite_state::sat_recharge_battery{0, 0};
+
+// Max battery capacity
+std::vector<int> satellite_state::sat_max_battery{0, 0};
+
+std::vector<int> satellite_state::measurement_coordinates;
+
+
+// Get the childs of a state implementation
 std::vector<satellite_state *> satellite_state::get_successors()
 {
     std::vector<satellite_state *> v;
@@ -332,13 +354,23 @@ std::vector<satellite_state *> satellite_state::get_successors()
     return v;
 };
 
+
+// Check if the state if the goal state implementation
 bool satellite_state::is_goal_state()
 {
     // Check that all have been downlinked
     return std::count(measurement_status.begin(), measurement_status.end(), 3) == measurement_status.size();
 };
 
-class satellite_hasher
+
+/*
+  .--.      .-'.      .--.      .--.      .--.      .--.      .`-.      .--.
+:::::.\::::::::.\::::::  UNORDERED SET FUNCTIONS ::::::.\::::::::.\::::::::.\
+'      `--'      `.-'      `--'      `--'      `--'      `-.'      `--'      `
+*/
+
+// The unordered set first performs a hash over the node using this function
+struct satellite_hasher
 {
 public:
     size_t operator()(const satellite_state *p) const
@@ -347,57 +379,56 @@ public:
         s << "t" << p->time % 12;
         s << "s0rb" << p->sat_remaining_battery[0];
         s << "s1rb" << p->sat_remaining_battery[1];
-
         s << "mstat";
         for (auto stat : p->measurement_status)
         {
             s << stat;
         }
-
         s << "ac" << p->associated_cost;
-
         s << "s0b" << p->sat_band[0];
         s << "s1b" << p->sat_band[1];
-
         s << "s0d" << p->sat_0_action.action_data;
         s << "s0a" << p->sat_0_action.executed_action;
         s << "s1d" << p->sat_1_action.action_data;
         s << "s1a" << p->sat_1_action.executed_action;
 
         std::string to_hash = s.str();
-        // std::cout << std::hash<std::string>()(to_hash) << "\n";
-
-        // std::chrono::milliseconds timespan(1); // or whatever
-        // std::this_thread::sleep_for(timespan);
-
         return std::hash<std::string>()(to_hash);
     }
 };
 
-/* Static parts */
-// Cost of making an observation
-std::vector<int> satellite_state::sat_observe_cost{0, 0};
+// If two elements have the same hash, they are compared using this function
+struct satellite_pointers_equal
+{
+    bool operator()(satellite_state const *one, satellite_state const *two) const
+    {
+        bool time_eq = one->time % 12 == two->time % 12;
+        bool band_eq = one->sat_band == two->sat_band;
+        bool status_eq = one->measurement_status == two->measurement_status;
+        bool cost_eq = one->associated_cost == two->associated_cost;
+        bool a0_eq = one->sat_0_action.action_data == two->sat_0_action.action_data &&
+                     one->sat_0_action.executed_action == two->sat_0_action.executed_action;
+        bool a1_eq = one->sat_1_action.action_data == two->sat_1_action.action_data &&
+                     one->sat_1_action.executed_action == two->sat_1_action.executed_action;
+        bool remaining_battery_eq = one->sat_remaining_battery == two->sat_remaining_battery;
+        return time_eq && band_eq && status_eq && cost_eq && a0_eq && a1_eq && remaining_battery_eq;
+    }
+};
 
-// Cost of downlinking
-std::vector<int> satellite_state::sat_downlink_cost{0, 0};
 
-// Cost of visibility band turn
-std::vector<int> satellite_state::sat_turn_cost{0, 0};
 
-// How much does battery increase per charge hour
-std::vector<int> satellite_state::sat_recharge_battery{0, 0};
-
-// Max battery capacity
-std::vector<int> satellite_state::sat_max_battery{0, 0};
-
-std::vector<int> satellite_state::measurement_coordinates;
+/*
+  .--.      .-'.      .--.      .--.      .--.      .--.      .`-.      .--.
+:::::.\::::::::.\::::::::.\      A* SEARCH     ::::::::.\::::::::.\::::::::.\
+'      `--'      `.-'      `--'      `--'      `--'      `-.'      `--'      `
+*/
 
 template <typename lambda>
 class a_star
 {
 
 private:
-    std::unordered_set<satellite_state *, satellite_hasher, PointedObjEq> visited;
+    std::unordered_set<satellite_state *, satellite_hasher, satellite_pointers_equal> visited;
 
 public:
     results search(satellite_state root, lambda heuristic)
@@ -427,6 +458,7 @@ public:
         int steps = 1;
         while (!queue.empty())
         {
+            // Each time a element is dequeued, a step is done
             steps++;
             if (queue.top()->state->is_goal_state())
                 break;
@@ -461,8 +493,6 @@ public:
             nothing.solution_found = false;
             return nothing;
         }
-
-        // std::cout << *queue.top()->state;
 
         std::vector<std::string> action_to_string(6);
         action_to_string[OBSERVE_UP] = "Measure";
