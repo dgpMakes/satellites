@@ -451,6 +451,7 @@ public:
 
         std::vector<satellite_state *> root_successors = root_node->state->get_successors();
 
+        // Insert all the childrens of root
         for (satellite_state *root_successor : root_successors)
         {
             node *root_successors_node = new node();
@@ -467,6 +468,8 @@ public:
         {
             // Each time a element is dequeued, a step is done
             steps++;
+
+            // Check if the extracted node is the goal state
             if (queue.top()->state->is_goal_state())
                 break;
 
