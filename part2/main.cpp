@@ -167,7 +167,13 @@ std::vector<int> satellite_state::measurement_coordinates;
 // Get the childs of a state implementation
 std::vector<satellite_state *> satellite_state::get_successors()
 {
+    // The vector that will be returned with all the childs
     std::vector<satellite_state *> v;
+
+    //<*><*><*><*><*><*><*><*><*><*><*><*><*><*><*><*><*><*><*><*>
+    //      PRECONDITIONS
+    //<*><*><*><*><*><*><*><*><*><*><*><*><*><*><*><*><*><*><*><*>
+
     /* Operations definition */
     // Definir un array de booleanos, indicando si un satélite puede hacer una acción.
     std::vector<bool> sat0(6, false); // Observe up, Observe down, turn, recharge, downlink, do_nothing
@@ -207,7 +213,11 @@ std::vector<satellite_state *> satellite_state::get_successors()
     sat0[NOTHING] = true;
     sat1[NOTHING] = true;
 
-    // Calculate all the possible operations
+    //<*><*><*><*><*><*><*><*><*><*><*><*><*><*><*><*><*><*><*><*>
+    //      ACTIONS
+    //<*><*><*><*><*><*><*><*><*><*><*><*><*><*><*><*><*><*><*><*>
+
+    // Calculate all the possible operations that can be done
     for (int i = 0; i < 6; i++)
     {
         for (int j = 0; j < 6; j++)
@@ -229,10 +239,8 @@ std::vector<satellite_state *> satellite_state::get_successors()
                     }
                 }
 
-                // Add the operation
-                int child_time;
-                child_time = this->time + 1;
-
+                // Create the variables for the childs
+                int child_time = this->time + 1;
                 action child_sat_0_action;
                 action child_sat_1_action;
                 std::vector<int> child_sat_band = sat_band;
@@ -338,11 +346,13 @@ std::vector<satellite_state *> satellite_state::get_successors()
                     break;
                 }
 
+                // Create the child state
                 satellite_state *child_state = new satellite_state(child_time, child_sat_band,
                                                                    child_measurement_status, child_sat_remaining_battery,
                                                                    child_sat_0_action, child_sat_1_action,
                                                                    child_associated_cost);
 
+                // Append the child state
                 v.push_back(child_state);
             }
         }
@@ -352,7 +362,7 @@ std::vector<satellite_state *> satellite_state::get_successors()
 };
 
 
-// Check if the state if the goal state implementation
+// Check if the state is the goal state implementation
 bool satellite_state::is_goal_state()
 {
     // Check that all have been downlinked
@@ -430,16 +440,16 @@ private:
 public:
     results search(satellite_state root, lambda heuristic)
     {
-
+        // Initialize the priority queue
         std::priority_queue<node *, std::vector<node *>, lambda> queue(heuristic);
 
+        // Insert the root node
         node *root_node = new node();
         root_node->accumulated_cost = 0;
         root_node->parent = nullptr;
         root_node->state = &root;
 
         std::vector<satellite_state *> root_successors = root_node->state->get_successors();
-        float avg_exp = root_successors.size();
 
         for (satellite_state *root_successor : root_successors)
         {
@@ -466,7 +476,6 @@ public:
 
             // Get all sucessors and append them to the fifo queue
             std::vector<satellite_state *> successors = parent_node->state->get_successors(); // ERROR
-            avg_exp = (avg_exp + successors.size()) / 2;
             for (satellite_state *successor : successors)
             {
                 // Check if the node has already been visited
@@ -583,9 +592,17 @@ int heuristic2(node* a) {
     // If there is any measurement to do, then add the minimum sat turn to the cost
     for (int band : bands_to_visit)
     {
-        auto start = a->state->measurement_status.begin();
-        auto end = a->state->measurement_status.end();
-        h2 += std::count(start, end, 0) == 0 ? 0 : Tmin;
+        bool found = false;
+        for(int i = 0; i < satellite_state::measurement_coordinates.size(); i++) {
+            int m = satellite_state::measurement_coordinates[i];
+            // Check if the coordinate is part of the band
+            if (m >= band * PROBLEM_WIDTH && m <= band * PROBLEM_WIDTH + 12) {
+                // Only count the coordinate if it is not observed yet
+                if(a->state->measurement_status[i] == 0) found = true;
+            }
+        }
+
+        h2 += found ? 0 : Tmin;
     }
 
     return heuristic1(a) + h2;
