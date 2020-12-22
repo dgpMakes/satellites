@@ -518,6 +518,9 @@ public:
 
 int main(int argc, char **argv)
 {
+    //<*><*><*><*><*><*><*><*><*><*><*><*><*><*><*><*><*><*><*><*>
+    //      COMMAND PARSING
+    //<*><*><*><*><*><*><*><*><*><*><*><*><*><*><*><*><*><*><*><*>
 
     // Check for help argument
     if (argc == 2 && ((std::string)argv[1] == "--help" || (std::string)argv[1] == "-h"))
@@ -538,16 +541,19 @@ int main(int argc, char **argv)
         return -1;
     }
 
-    std::string problem_file_content;
+    //<*><*><*><*><*><*><*><*><*><*><*><*><*><*><*><*><*><*><*><*>
+    //      PROBLEM INFORMATION EXTRACTION
+    //<*><*><*><*><*><*><*><*><*><*><*><*><*><*><*><*><*><*><*><*>
 
+    // Open the file to get the information about the problem
     std::ifstream file(argv[1], std::ifstream::in);
 
-    // Parsing the problem's data
+    // Read the whole file into a string
     std::stringstream str_stream;
     str_stream << file.rdbuf();
-    problem_file_content = str_stream.str();
+    std::string problem_file_content = str_stream.str();
 
-    // Get each line
+    // Separate lines for processing
     std::vector<std::string> lines = split(problem_file_content, "\n");
 
     // Get observations list
@@ -556,6 +562,7 @@ int main(int argc, char **argv)
     std::vector<std::string> observations_list = split(lines[0], ";");
 
     // Analyze the scheduled observations in the file
+    // Insert the observations using the specified format in the report
     std::vector<int> measurement_coordinates;
     for (std::string obs : observations_list)
     {
@@ -578,13 +585,12 @@ int main(int argc, char **argv)
     replace(lines[1], "SAT1:", "");
     std::vector<std::string> sat0_data = split(lines[1], ";");
 
+    // Extract satellite two static parameters
     replace(lines[2], " ", "");
     replace(lines[2], "SAT2:", "");
     std::vector<std::string> sat1_data = split(lines[2], ";");
 
-    // Define static parts of the problem and pass struct with all the data
-
-    /* Static parts */
+    // Define static parts of the problem
     // Cost of making an observation
     satellite_state::sat_observe_cost[0] = std::stoi(sat0_data[0]);
     satellite_state::sat_observe_cost[1] = std::stoi(sat1_data[0]);
@@ -605,9 +611,16 @@ int main(int argc, char **argv)
     satellite_state::sat_max_battery[0] = std::stoi(sat0_data[4]);
     satellite_state::sat_max_battery[1] = std::stoi(sat1_data[4]);
 
+    // Coordinates of observations to measure
     satellite_state::measurement_coordinates = measurement_coordinates;
 
+    //<*><*><*><*><*><*><*><*><*><*><*><*><*><*><*><*><*><*><*><*>
+    //      INITIAL SATELLITE BANDS (0 FOR SAT1 AND 2 FOR SAT2)
+    //<*><*><*><*><*><*><*><*><*><*><*><*><*><*><*><*><*><*><*><*>
+    // Refer to the report for more information about the effect of changing initial bands
     std::vector<int> initial_sat_bands{0, 2};
+
+    // Satellites start with the maximum battery
     std::vector<int> sat_remaining_battery{satellite_state::sat_max_battery[0],
                                            satellite_state::sat_max_battery[1]};
 
@@ -620,6 +633,12 @@ int main(int argc, char **argv)
     satellite_state root(0, initial_sat_bands, measurement_status,
                          sat_remaining_battery, initial_sat_0, initial_sat_1, 0);
 
+
+    //<*><*><*><*><*><*><*><*><*><*><*><*><*><*><*><*><*><*><*><*>
+    //      DEFINITION OF HEURISTICS
+    //<*><*><*><*><*><*><*><*><*><*><*><*><*><*><*><*><*><*><*><*>
+
+    // No heuristic, only current cost taken into account (Dijkstra)
     auto dj = [](node *a, node *b) { return a->accumulated_cost > b->accumulated_cost; };
 
     auto h1 = [](node *a, node *b) {
