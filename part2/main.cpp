@@ -583,8 +583,8 @@ int heuristic2(node* a) {
     // If there is any measurement to do, then add the minimum sat turn to the cost
     for (int band : bands_to_visit)
     {
-        auto start = a->state->measurement_status.begin() + PROBLEM_WIDTH * band;
-        auto end = a->state->measurement_status.begin() + PROBLEM_WIDTH * band + 12;
+        auto start = a->state->measurement_status.begin();
+        auto end = a->state->measurement_status.end();
         h2 += std::count(start, end, 0) == 0 ? 0 : Tmin;
     }
 
