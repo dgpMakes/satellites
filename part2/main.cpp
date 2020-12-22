@@ -519,9 +519,10 @@ public:
 
             std::string sat_0_act = action_to_string[a_0.executed_action];
             std::string sat_1_act = action_to_string[a_1.executed_action];
-
-            results.push_back("SAT1: " + sat_0_act + " " + sat_0_data + ", SAT2: " + sat_1_act + " " + sat_1_data + "\n");
+            
             if(s->state->time%12 == 0) results.push_back("--- 12 Hours IDLE ---\n");
+            results.push_back("SAT1: " + sat_0_act + " " + sat_0_data + ", SAT2: " + sat_1_act + " " + sat_1_data + "\n");
+            
             s = s->parent;
         } while (s->parent != nullptr);
 
