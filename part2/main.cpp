@@ -4,10 +4,10 @@
 #include <vector>
 #include <unordered_set>
 #include <queue>
-#include "main.h"
 #include <bitset>
 #include <chrono>
 #include <algorithm>
+#include "main.h"
 
 #define OBSERVE_UP 0
 #define OBSERVE_DOWN 1
@@ -23,15 +23,6 @@
 
 #define PROBLEM_HEIGHT 4
 #define PROBLEM_WIDTH 12
-
-// What every seach problem shall implement for the search algorithm to use
-class search_problem
-{
-public:
-    std::vector<search_problem> *get_successors();
-    bool is_goal_state();
-    ~search_problem();
-};
 
 // The only thing that has a cost is passing time
 enum act
@@ -142,17 +133,18 @@ public:
     bool is_goal_state();
 };
 
-
-struct PointedObjEq {
-    bool operator () ( satellite_state const * one, satellite_state const * two ) const {
-        bool time_eq = one->time%12 == two->time%12;
+struct PointedObjEq
+{
+    bool operator()(satellite_state const *one, satellite_state const *two) const
+    {
+        bool time_eq = one->time % 12 == two->time % 12;
         bool band_eq = one->sat_band == two->sat_band;
         bool status_eq = one->measurement_status == two->measurement_status;
         bool cost_eq = one->associated_cost == two->associated_cost;
         bool a0_eq = one->sat_0_action.action_data == two->sat_0_action.action_data &&
-                    one->sat_0_action.executed_action == two->sat_0_action.executed_action;
+                     one->sat_0_action.executed_action == two->sat_0_action.executed_action;
         bool a1_eq = one->sat_1_action.action_data == two->sat_1_action.action_data &&
-                    one->sat_1_action.executed_action == two->sat_1_action.executed_action;
+                     one->sat_1_action.executed_action == two->sat_1_action.executed_action;
         bool remaining_battery_eq = one->sat_remaining_battery == two->sat_remaining_battery;
         return time_eq && band_eq && status_eq && cost_eq && a0_eq && a1_eq && remaining_battery_eq;
     }
@@ -332,9 +324,9 @@ std::vector<satellite_state *> satellite_state::get_successors()
                 }
 
                 satellite_state *child_state = new satellite_state(child_time, child_sat_band,
-                                                                    child_measurement_status, child_sat_remaining_battery,
-                                                                    child_sat_0_action, child_sat_1_action, 
-                                                                    child_associated_cost);
+                                                                   child_measurement_status, child_sat_remaining_battery,
+                                                                   child_sat_0_action, child_sat_1_action,
+                                                                   child_associated_cost);
 
                 v.push_back(child_state);
             }
@@ -356,16 +348,16 @@ public:
     size_t operator()(const satellite_state *p) const
     {
         std::stringstream s;
-        s << "t" << p->time%12;
+        s << "t" << p->time % 12;
         s << "s0rb" << p->sat_remaining_battery[0];
         s << "s1rb" << p->sat_remaining_battery[1];
 
-
         s << "mstat";
-        for (auto stat : p->measurement_status) {
+        for (auto stat : p->measurement_status)
+        {
             s << stat;
         }
-        
+
         s << "ac" << p->associated_cost;
 
         s << "s0b" << p->sat_band[0];
@@ -571,7 +563,6 @@ int main(int argc, char **argv)
         measurement_coordinates.push_back(PROBLEM_WIDTH * band + time);
     }
 
-
     // Extract satellite one static parameters
     replace(lines[1], " ", "");
     replace(lines[1], "SAT1:", "");
@@ -616,8 +607,8 @@ int main(int argc, char **argv)
     action initial_sat_0;
     action initial_sat_1;
 
-    satellite_state root(0, initial_sat_bands, measurement_status, 
-                        sat_remaining_battery, initial_sat_0, initial_sat_1, 0);
+    satellite_state root(0, initial_sat_bands, measurement_status,
+                         sat_remaining_battery, initial_sat_0, initial_sat_1, 0);
 
     auto dj = [](node *a, node *b) { return a->accumulated_cost > b->accumulated_cost; };
 
