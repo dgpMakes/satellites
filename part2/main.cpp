@@ -541,6 +541,14 @@ int main(int argc, char **argv)
         return -1;
     }
 
+    if (!((std::string)argv[2] == "dj" || (std::string)argv[2] == "h1" || (std::string)argv[2] == "h2"))
+    {
+        std::cerr << "The heuristic does not exist.\n";
+        std::cerr << "You can use the --help command to learn how to use this program.\n";
+
+        return -1;
+    }
+
     //<*><*><*><*><*><*><*><*><*><*><*><*><*><*><*><*><*><*><*><*>
     //      PROBLEM INFORMATION EXTRACTION
     //<*><*><*><*><*><*><*><*><*><*><*><*><*><*><*><*><*><*><*><*>
@@ -624,12 +632,15 @@ int main(int argc, char **argv)
     std::vector<int> sat_remaining_battery{satellite_state::sat_max_battery[0],
                                            satellite_state::sat_max_battery[1]};
 
-    int obs_count = measurement_coordinates.size();
-    std::vector<std::bitset<2>> measurement_status(obs_count, 0);
+    // Initialize the measurement status
+    // Refer to the report for more information about how the bitset is used
+    int observation_count = measurement_coordinates.size();
+    std::vector<std::bitset<2>> measurement_status(observation_count, 0);
 
     action initial_sat_0;
     action initial_sat_1;
 
+    // Initialize the initial state
     satellite_state root(0, initial_sat_bands, measurement_status,
                          sat_remaining_battery, initial_sat_0, initial_sat_1, 0);
 
@@ -641,6 +652,7 @@ int main(int argc, char **argv)
     // No heuristic, only current cost taken into account (Dijkstra)
     auto dj = [](node *a, node *b) { return a->accumulated_cost > b->accumulated_cost; };
 
+    // A heuristic that takes into account the cost related to observations measurement and downlink.
     auto h1 = [](node *a, node *b) {
         int left_observations_a = std::count(a->state->measurement_status.begin(), a->state->measurement_status.end(), 0);
         int left_downlinks_a = a->state->measurement_status.size() - std::count(a->state->measurement_status.begin(), a->state->measurement_status.end(), 3);
@@ -648,34 +660,46 @@ int main(int argc, char **argv)
         int left_observations_b = std::count(b->state->measurement_status.begin(), b->state->measurement_status.end(), 0);
         int left_downlinks_b = b->state->measurement_status.size() - std::count(b->state->measurement_status.begin(), b->state->measurement_status.end(), 3);
 
+        // Min cost of measuring (optimistic heuristic)
         int obs_cost = std::min(satellite_state::sat_observe_cost[0], satellite_state::sat_observe_cost[1]);
+        
+        // Min cost of downlinking (optimistic heuristic)
         int dl_cost = std::min(satellite_state::sat_downlink_cost[0], satellite_state::sat_downlink_cost[1]);
 
+        // We have to calculate the heuristic of two nodes to compare them
         int heuristic_a = left_observations_a * obs_cost + left_downlinks_a * dl_cost;
         int heuristic_b = left_observations_b * obs_cost + left_downlinks_b * dl_cost;
+
         return a->accumulated_cost + heuristic_a > b->accumulated_cost + heuristic_b;
     };
 
+    // A heuristic that takes into account cost related to measurements, downlink and turns.
     auto h2 = [](node *a, node *b) {
         int left_observations_a = std::count(a->state->measurement_status.begin(), a->state->measurement_status.end(), 0);
         int left_downlinks_a = a->state->measurement_status.size() - std::count(a->state->measurement_status.begin(), a->state->measurement_status.end(), 3);
 
         int left_observations_b = std::count(b->state->measurement_status.begin(), b->state->measurement_status.end(), 0);
         int left_downlinks_b = b->state->measurement_status.size() - std::count(b->state->measurement_status.begin(), b->state->measurement_status.end(), 3);
-
+        
+        // Min cost of measuring (optimistic heuristic)
         int obs_cost = std::min(satellite_state::sat_observe_cost[0], satellite_state::sat_observe_cost[1]);
+        
+        // Min cost of downlinking (optimistic heuristic)
         int dl_cost = std::min(satellite_state::sat_downlink_cost[0], satellite_state::sat_downlink_cost[1]);
 
-        std::vector<int> bands_to_visit_a{0, 1, 2, 3};
+        // COST DERIVED FROM TURN CALCULATION
+        // REFER TO THE REPORT FOR MORE INFORMATION
 
         /* For node a */
+        std::vector<int> bands_to_visit_a{0, 1, 2, 3};
+
         // Remove all the bands that are in the reach of the satellite
         remove_vector_element(&bands_to_visit_a, a->state->sat_band[0]);
         remove_vector_element(&bands_to_visit_a, a->state->sat_band[0] + 1);
         remove_vector_element(&bands_to_visit_a, a->state->sat_band[1]);
         remove_vector_element(&bands_to_visit_a, a->state->sat_band[1] + 1);
 
-        // Check of there is any measurement to be done in the bands that are not covered by the satellites
+        // Check if there is any measurement to be done in the bands that are not covered by the satellites
         // If there is any measurement to do, then add one to the cost
         int counting_a = 0;
         for (int band : bands_to_visit_a)
@@ -685,6 +709,7 @@ int main(int argc, char **argv)
             counting_a += std::count(start, end, 0) == 0 ? 0 : 1;
         }
 
+        // The same for node b
         /* For node b */
         std::vector<int> bands_to_visit_b{0, 1, 2, 3};
 
@@ -712,12 +737,14 @@ int main(int argc, char **argv)
         return a->accumulated_cost + heuristic_a > b->accumulated_cost + heuristic_b;
     };
 
-    std::string heuristic_argument = argv[2];
-
-    results r;
+    //<*><*><*><*><*><*><*><*><*><*><*><*><*><*><*><*><*><*><*><*>
+    //      SEARCH START
+    //<*><*><*><*><*><*><*><*><*><*><*><*><*><*><*><*><*><*><*><*>
 
     auto start_time = std::chrono::high_resolution_clock::now();
 
+    results r;
+    std::string heuristic_argument = argv[2];
     if (heuristic_argument == "dj")
     {
         a_star<decltype(dj)> a;
@@ -733,13 +760,12 @@ int main(int argc, char **argv)
         a_star<decltype(h2)> a;
         r = a.search(root, h2);
     }
-    else
-    {
-        a_star<decltype(h1)> a;
-        r = a.search(root, h1);
-    }
 
     auto end_time = std::chrono::high_resolution_clock::now();
+
+    //<*><*><*><*><*><*><*><*><*><*><*><*><*><*><*><*><*><*><*><*>
+    //      STORING SOLUTIONS
+    //<*><*><*><*><*><*><*><*><*><*><*><*><*><*><*><*><*><*><*><*>
 
     std::stringstream sol;
 
@@ -757,18 +783,17 @@ int main(int argc, char **argv)
     stats << "# Steps: " << r.steps << std::endl;
     stats << "# Expansions: " << r.expanded_nodes << std::endl;
 
-    std::cout << sol.str();
-    std::cout << stats.str();
-
-    // Open the output file and write soplutions to it
+    // Open the output file and write solutions to it
     std::ofstream output((std::string)argv[1] + ".output", std::ofstream::out);
 
-    // Open the output file and write soplutions to it
+    // Open the output file and write statistics to it
     std::ofstream statistics((std::string)argv[1] + ".statistics", std::ofstream::out);
 
+    // Write solution and statistics
     output << sol.str();
     statistics << stats.str();
 
+    // Close files
     output.close();
     statistics.close();
 
