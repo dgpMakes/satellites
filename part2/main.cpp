@@ -77,10 +77,7 @@ struct results
     int overall_cost;
 };
 
-/*
-In this problem we are assuming there are only 12 hours on a day
-There are only 4 bands and 3 possitions for the two considered satellites.
-*/
+
 
 
 
@@ -540,6 +537,60 @@ public:
 
 /*
   .--.      .-'.      .--.      .--.      .--.      .--.      .`-.      .--.
+:::::.\::::::::.\:::.\ DEFINITION OF HEURISTICS  ::::::.\::::::::.\::::::::.\
+'      `--'      `.-'      `--'      `--'      `--'      `-.'      `--'      `
+*/
+
+
+int heuristic1(node* a){
+    int N = std::count(a->state->measurement_status.begin(), a->state->measurement_status.end(), 0);
+    int C = std::min(a->state->sat_observe_cost[0], a->state->sat_observe_cost[1]);
+
+    int h1a = N * C;
+
+    // Min cost of measuring (optimistic heuristic)
+    int C1 = satellite_state::sat_downlink_cost[0];
+    int C2 = satellite_state::sat_downlink_cost[1];
+    int Cmin = std::min(C1, C2);
+
+    int D1 = std::count(a->state->measurement_status.begin(), a->state->measurement_status.end(), 1);
+    int D2 = std::count(a->state->measurement_status.begin(), a->state->measurement_status.end(), 2);
+    int D = std::count(a->state->measurement_status.begin(), a->state->measurement_status.end(), 0);
+    
+    int h1b = D * Cmin + D1 * C1 + D2 * C2;
+
+    return h1a + h1b;
+}
+
+int heuristic2(node* a) {
+    int h2 = 0;
+
+    int T1 = a->state->sat_turn_cost[0];
+    int T2 = a->state->sat_turn_cost[1];
+    int Tmin = std::min(T1, T2);
+
+    std::vector<int> bands_to_visit{0, 1, 2, 3};
+
+    // Remove all the bands that are in the reach of the satellite
+    remove_vector_element(&bands_to_visit, a->state->sat_band[0]);
+    remove_vector_element(&bands_to_visit, a->state->sat_band[0] + 1);
+    remove_vector_element(&bands_to_visit, a->state->sat_band[1]);
+    remove_vector_element(&bands_to_visit, a->state->sat_band[1] + 1);
+
+    // Check if there is any measurement to be done in the bands that are not covered by the satellites
+    // If there is any measurement to do, then add the minimum sat turn to the cost
+    for (int band : bands_to_visit)
+    {
+        auto start = a->state->measurement_status.begin() + PROBLEM_WIDTH * band;
+        auto end = a->state->measurement_status.begin() + PROBLEM_WIDTH * band + 12;
+        h2 += std::count(start, end, 0) == 0 ? 0 : Tmin;
+    }
+
+    return heuristic1(a) + h2;
+}
+
+/*
+  .--.      .-'.      .--.      .--.      .--.      .--.      .`-.      .--.
 :::::.\::::::::.\::::::::.\    MAIN FUNCTION   ::::::::.\::::::::.\::::::::.\
 '      `--'      `.-'      `--'      `--'      `--'      `-.'      `--'      `
 */
@@ -684,87 +735,12 @@ int main(int argc, char **argv)
 
     // A heuristic that takes into account the cost related to observations measurement and downlink.
     auto h1 = [](node *a, node *b) {
-        int left_observations_a = std::count(a->state->measurement_status.begin(), a->state->measurement_status.end(), 0);
-        int left_downlinks_a = a->state->measurement_status.size() - std::count(a->state->measurement_status.begin(), a->state->measurement_status.end(), 3);
-
-        int left_observations_b = std::count(b->state->measurement_status.begin(), b->state->measurement_status.end(), 0);
-        int left_downlinks_b = b->state->measurement_status.size() - std::count(b->state->measurement_status.begin(), b->state->measurement_status.end(), 3);
-
-        // Min cost of measuring (optimistic heuristic)
-        int obs_cost = std::min(satellite_state::sat_observe_cost[0], satellite_state::sat_observe_cost[1]);
-        
-        // Min cost of downlinking (optimistic heuristic)
-        int dl_cost = std::min(satellite_state::sat_downlink_cost[0], satellite_state::sat_downlink_cost[1]);
-
-        // We have to calculate the heuristic of two nodes to compare them
-        int heuristic_a = left_observations_a * obs_cost + left_downlinks_a * dl_cost;
-        int heuristic_b = left_observations_b * obs_cost + left_downlinks_b * dl_cost;
-
-        return a->accumulated_cost + heuristic_a > b->accumulated_cost + heuristic_b;
+        return a->accumulated_cost + heuristic1(a) > b->accumulated_cost + heuristic1(b);
     };
 
     // A heuristic that takes into account cost related to measurements, downlink and turns.
     auto h2 = [](node *a, node *b) {
-        int left_observations_a = std::count(a->state->measurement_status.begin(), a->state->measurement_status.end(), 0);
-        int left_downlinks_a = a->state->measurement_status.size() - std::count(a->state->measurement_status.begin(), a->state->measurement_status.end(), 3);
-
-        int left_observations_b = std::count(b->state->measurement_status.begin(), b->state->measurement_status.end(), 0);
-        int left_downlinks_b = b->state->measurement_status.size() - std::count(b->state->measurement_status.begin(), b->state->measurement_status.end(), 3);
-        
-        // Min cost of measuring (optimistic heuristic)
-        int obs_cost = std::min(satellite_state::sat_observe_cost[0], satellite_state::sat_observe_cost[1]);
-        
-        // Min cost of downlinking (optimistic heuristic)
-        int dl_cost = std::min(satellite_state::sat_downlink_cost[0], satellite_state::sat_downlink_cost[1]);
-
-        // COST DERIVED FROM TURN CALCULATION
-        // REFER TO THE REPORT FOR MORE INFORMATION
-
-        /* For node a */
-        std::vector<int> bands_to_visit_a{0, 1, 2, 3};
-
-        // Remove all the bands that are in the reach of the satellite
-        remove_vector_element(&bands_to_visit_a, a->state->sat_band[0]);
-        remove_vector_element(&bands_to_visit_a, a->state->sat_band[0] + 1);
-        remove_vector_element(&bands_to_visit_a, a->state->sat_band[1]);
-        remove_vector_element(&bands_to_visit_a, a->state->sat_band[1] + 1);
-
-        // Check if there is any measurement to be done in the bands that are not covered by the satellites
-        // If there is any measurement to do, then add one to the cost
-        int counting_a = 0;
-        for (int band : bands_to_visit_a)
-        {
-            auto start = a->state->measurement_status.begin() + PROBLEM_WIDTH * band;
-            auto end = a->state->measurement_status.begin() + PROBLEM_WIDTH * band + 12;
-            counting_a += std::count(start, end, 0) == 0 ? 0 : 1;
-        }
-
-        // The same for node b
-        /* For node b */
-        std::vector<int> bands_to_visit_b{0, 1, 2, 3};
-
-        // Remove all the bands that are in the reach of the satellite
-
-        remove_vector_element(&bands_to_visit_b, b->state->sat_band[0]);
-        remove_vector_element(&bands_to_visit_b, b->state->sat_band[0] + 1);
-        remove_vector_element(&bands_to_visit_b, b->state->sat_band[1]);
-        remove_vector_element(&bands_to_visit_b, b->state->sat_band[1] + 1);
-
-        // Check of there is any measurement to be done in the bands that are not covered by the satellites
-        // If there is any measurement to do, then add one to the cost
-        int counting_b = 0;
-        for (int band : bands_to_visit_b)
-        {
-            auto start = b->state->measurement_status.begin() + PROBLEM_WIDTH * band;
-            auto end = b->state->measurement_status.begin() + PROBLEM_WIDTH * band + 12;
-            counting_b += std::count(start, end, 0) == 0 ? 0 : 1;
-        }
-
-        std::cout << counting_a << counting_b << std::endl;
-
-        int heuristic_a = left_observations_a * obs_cost + left_downlinks_a * dl_cost + counting_a;
-        int heuristic_b = left_observations_b * obs_cost + left_downlinks_b * dl_cost + counting_b;
-        return a->accumulated_cost + heuristic_a > b->accumulated_cost + heuristic_b;
+        return a->accumulated_cost + heuristic2(a) > b->accumulated_cost + heuristic2(b);
     };
 
     //<*><*><*><*><*><*><*><*><*><*><*><*><*><*><*><*><*><*><*><*>
@@ -829,3 +805,5 @@ int main(int argc, char **argv)
 
     return 0;
 }
+
+
