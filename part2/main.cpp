@@ -71,10 +71,6 @@ struct results
     int overall_cost;
 };
 
-auto comp = [](node *lhs, node *rhs) {
-    return lhs->accumulated_cost < rhs->accumulated_cost;
-};
-
 /*
 In this problem we are assuming there are only 12 hours on a day
 There are only 4 bands and 3 possitions for the two considered satellites.
@@ -512,19 +508,33 @@ public:
     }
 };
 
+/*
+  .--.      .-'.      .--.      .--.      .--.      .--.      .`-.      .--.
+:::::.\::::::::.\::::::::.\    MAIN FUNCTION   ::::::::.\::::::::.\::::::::.\
+'      `--'      `.-'      `--'      `--'      `--'      `-.'      `--'      `
+*/
+
+// The file is read, a star search is started and results are printed in the main function
+
 int main(int argc, char **argv)
 {
 
+    // Check for help argument
     if (argc == 2 && ((std::string)argv[1] == "--help" || (std::string)argv[1] == "-h"))
     {
         std::cout << "Use " << argv[0] << " problem.prob heuristic\n"
-                  << "Valid heuristics: dj, h1, h2.\n";
+                  << "Valid heuristics: dj, h1, h2. \n"
+                  << "dj stands for Dijkstra search (no heuristic).\n"
+                  << "h1 stands for the first heuristic defined in the report."
+                  << "h2 stands for the seconds heuristic defined in the report (more advanced than h1).";
         return 0;
     }
 
     if (argc != 3)
     {
-        std::cerr << "The number of arguments is incorrect: " << argc;
+        std::cerr << "The number of arguments is incorrect.\n";
+        std::cerr << "You can use the --help command to learn how to use this program.\n";
+
         return -1;
     }
 
